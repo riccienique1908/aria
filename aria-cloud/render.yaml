@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: aria-personal-ai
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false          # You fill this in Render dashboard
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: APP_PASSWORD
+        sync: false
+      - key: RENDER_EXTERNAL_URL
+        sync: false
+      - key: HA_URL
+        sync: false
+      - key: HA_TOKEN
+        sync: false

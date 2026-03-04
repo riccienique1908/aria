@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ARIA">
+<link rel="apple-touch-icon" href="/static/icon.png">
+<title>ARIA</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #05080a;
+  --s1:      #0a1018;
+  --s2:      #0e1620;
+  --border:  #162030;
+  --accent:  #38bdf8;
+  --accent2: #0ea5e9;
+  --dim:     #1e4060;
+  --text:    #cce4f6;
+  --muted:   #3a6080;
+  --white:   #eef6fd;
+  --green:   #34d399;
+  --amber:   #fbbf24;
+  --red:     #f87171;
+  --sat:     env(safe-area-inset-top,0px);
+  --sab:     env(safe-area-inset-bottom,0px);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Geist Mono',monospace}
+
+/* Scanline texture */
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;
+background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px)}
+
+/* Deep glow */
+.glow{position:fixed;pointer-events:none;z-index:0;border-radius:50%;filter:blur(80px);opacity:.12}
+.glow-1{top:-20vh;left:-10vw;width:60vw;height:60vh;background:var(--accent);animation:g1 20s ease-in-out infinite alternate}
+.glow-2{bottom:-10vh;right:-10vw;width:50vw;height:50vh;background:#6366f1;animation:g2 25s ease-in-out infinite alternate}
+@keyframes g1{0%{transform:translate(0,0)}100%{transform:translate(15vw,10vh)}}
+@keyframes g2{0%{transform:translate(0,0)}100%{transform:translate(-10vw,-8vh)}}
+
+/* ── Lock screen ── */
+#lockScreen{position:fixed;inset:0;z-index:500;display:flex;flex-direction:column;
+align-items:center;justify-content:center;background:var(--bg);padding:40px 32px}
+#lockScreen.hidden{display:none}
+.lock-logo{font-family:'Instrument Serif',serif;font-size:52px;font-style:italic;
+color:var(--white);margin-bottom:8px;letter-spacing:-2px}
+.lock-logo span{color:var(--accent)}
+.lock-sub{font-size:11px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-bottom:48px}
+.lock-input{width:100%;max-width:280px;background:var(--s1);border:1px solid var(--border);
+border-radius:12px;padding:14px 18px;color:var(--white);font-family:'Geist Mono',monospace;
+font-size:15px;outline:none;text-align:center;letter-spacing:4px;margin-bottom:12px;transition:border-color .2s}
+.lock-input:focus{border-color:var(--accent)}
+.lock-btn{width:100%;max-width:280px;background:var(--accent2);color:var(--bg);border:none;
+border-radius:12px;padding:14px;font-family:'Geist Mono',monospace;font-size:13px;
+font-weight:500;cursor:pointer;letter-spacing:1px;transition:all .15s}
+.lock-btn:active{transform:scale(.98)}
+.lock-err{font-size:11px;color:var(--red);margin-top:8px;height:16px;text-align:center}
+.lock-skip{font-size:11px;color:var(--muted);margin-top:20px;cursor:pointer;letter-spacing:1px}
+.lock-skip:hover{color:var(--accent)}
+
+/* ── Main app ── */
+#app{display:flex;flex-direction:column;height:100%;position:relative;z-index:1}
+
+/* Header */
+header{padding:calc(var(--sat) + 14px) 18px 12px;display:flex;align-items:center;
+justify-content:space-between;border-bottom:1px solid var(--border);
+background:rgba(5,8,10,.92);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);flex-shrink:0}
+.logo{font-family:'Instrument Serif',serif;font-size:24px;font-style:italic;color:var(--white);letter-spacing:-1px}
+.logo em{color:var(--accent);font-style:italic}
+.hdr-right{display:flex;align-items:center;gap:8px}
+.mod-chip{font-size:9px;padding:3px 9px;border-radius:100px;background:var(--s2);
+border:1px solid var(--border);color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;transition:all .3s}
+.mod-chip.work{border-color:rgba(56,189,248,.3);color:var(--accent)}
+.mod-chip.health{border-color:rgba(52,211,153,.3);color:var(--green)}
+.mod-chip.food{border-color:rgba(251,191,36,.3);color:var(--amber)}
+.mod-chip.home{border-color:rgba(248,113,113,.3);color:var(--red)}
+.status-led{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;animation:led 2.5s ease infinite}
+@keyframes led{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(52,211,153,.4)}50%{opacity:.5;box-shadow:0 0 0 4px rgba(52,211,153,0)}}
+
+/* Tab bar */
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);background:var(--s1);
+border-bottom:1px solid var(--border);flex-shrink:0}
+.tab{display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 2px 8px;
+border:none;background:none;color:var(--muted);cursor:pointer;font-size:8.5px;
+letter-spacing:.8px;text-transform:uppercase;font-family:'Geist Mono',monospace;
+transition:all .2s;border-bottom:2px solid transparent;-webkit-touch-callout:none;user-select:none}
+.tab .ic{font-size:17px;line-height:1}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab:active{background:rgba(56,189,248,.04)}
+
+/* Panels */
+.panels{flex:1;overflow:hidden;position:relative}
+.panel{display:none;height:100%;flex-direction:column}
+.panel.active{display:flex}
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.scroll::-webkit-scrollbar{width:2px}
+.scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ── CHAT ── */
+.chat-scroll{flex:1;overflow-y:auto;padding:14px 14px 0;-webkit-overflow-scrolling:touch;scroll-behavior:smooth}
+.chat-scroll::-webkit-scrollbar{width:2px}
+.chat-scroll::-webkit-scrollbar-thumb{background:var(--border)}
+
+.day-sep{display:flex;align-items:center;gap:8px;margin:10px 0;font-size:9px;
+color:var(--muted);letter-spacing:2px;text-transform:uppercase}
+.day-sep::before,.day-sep::after{content:'';flex:1;height:1px;background:var(--border)}
+
+.msg{display:flex;gap:9px;margin-bottom:12px;align-items:flex-end}
+.msg.user{flex-direction:row-reverse}
+.av{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;
+justify-content:center;font-size:9px;font-weight:500;flex-shrink:0;letter-spacing:.5px}
+.msg.ai .av{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);color:var(--accent)}
+.msg.user .av{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);color:var(--green)}
+.mb{max-width:80%}
+.mm{font-size:8.5px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px}
+.msg.user .mm{text-align:right}
+.bbl{padding:10px 13px;border-radius:11px;font-size:13px;line-height:1.65;word-break:break-word}
+.msg.ai  .bbl{background:var(--s2);border:1px solid var(--border);border-bottom-left-radius:3px}
+.msg.user .bbl{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);
+border-bottom-right-radius:3px;color:var(--white)}
+.bbl pre{background:var(--bg);border:1px solid var(--border);border-radius:7px;
+padding:9px;margin:7px 0;font-size:10.5px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.bbl code{background:rgba(56,189,248,.08);padding:1px 5px;border-radius:4px;font-size:11.5px;color:var(--accent)}
+.mt{font-size:8.5px;color:var(--muted);margin-top:3px}
+.msg.user .mt{text-align:right}
+
+.typing-wrap{padding:0 14px 8px;display:none}
+.typing-row{display:flex;gap:9px;align-items:flex-end}
+.typing-bbl{display:flex;align-items:center;gap:4px;padding:10px 13px;
+background:var(--s2);border:1px solid var(--border);border-radius:11px;border-bottom-left-radius:3px}
+.td{width:5px;height:5px;border-radius:50%;background:var(--accent);animation:td 1.2s ease infinite}
+.td:nth-child(2){animation-delay:.2s}.td:nth-child(3){animation-delay:.4s}
+@keyframes td{0%,100%{opacity:.25;transform:scale(1)}50%{opacity:1;transform:scale(1.35)}}
+
+/* Input bar */
+.input-bar{padding:10px 12px calc(10px + var(--sab));background:rgba(5,8,10,.96);
+backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--border);flex-shrink:0}
+.ir{display:flex;gap:7px;align-items:flex-end}
+.iw{flex:1;background:var(--s1);border:1px solid var(--border);border-radius:13px;
+display:flex;align-items:flex-end;gap:5px;padding:6px 6px 6px 13px;transition:border-color .2s}
+.iw:focus-within{border-color:rgba(56,189,248,.35)}
+#mi{flex:1;background:none;border:none;outline:none;color:var(--white);
+font-family:'Geist Mono',monospace;font-size:13.5px;line-height:1.4;resize:none;
+max-height:90px;overflow-y:auto;padding:3px 0}
+#mi::placeholder{color:var(--muted)}
+.vbtn,.sbtn{width:34px;height:34px;border-radius:9px;border:none;
+display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;transition:all .15s;flex-shrink:0}
+.vbtn{background:rgba(56,189,248,.08);color:var(--accent)}
+.vbtn.rec{background:rgba(248,113,113,.12);color:var(--red);animation:vrec 1s ease infinite}
+@keyframes vrec{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.sbtn{background:var(--accent2);color:var(--bg)}
+.sbtn:active{background:var(--accent);transform:scale(.96)}
+.sbtn:disabled{opacity:.25}
+
+/* ── DASHBOARD ── */
+.p-inner{padding:14px}
+.sec{font-size:9px;color:var(--muted);letter-spacing:2.5px;text-transform:uppercase;
+margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.sec::after{content:'';flex:1;height:1px;background:var(--border)}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:18px}
+.kard{background:var(--s1);border:1px solid var(--border);border-radius:13px;
+padding:14px;position:relative;overflow:hidden;transition:transform .15s}
+.kard:active{transform:scale(.97)}
+.kard::after{content:'';position:absolute;top:0;left:0;right:0;height:1.5px}
+.kard.a::after{background:linear-gradient(90deg,var(--accent),transparent)}
+.kard.g::after{background:linear-gradient(90deg,var(--green),transparent)}
+.kard.o::after{background:linear-gradient(90deg,var(--amber),transparent)}
+.kard.r::after{background:linear-gradient(90deg,var(--red),transparent)}
+.ki{font-size:20px;margin-bottom:6px}
+.kv{font-family:'Instrument Serif',serif;font-size:26px;color:var(--white)}
+.ku{font-size:10px;color:var(--muted);margin-left:2px}
+.kl{font-size:9.5px;color:var(--muted);margin-top:1px;letter-spacing:.5px}
+
+.qlist{display:flex;flex-direction:column;gap:7px;margin-bottom:18px}
+.qbtn{background:var(--s1);border:1px solid var(--border);border-radius:11px;
+padding:12px 14px;display:flex;align-items:center;gap:11px;cursor:pointer;transition:all .15s;text-align:left}
+.qbtn:active{background:var(--s2);transform:scale(.99)}
+.qi{font-size:18px;width:28px;text-align:center;flex-shrink:0}
+.qt{flex:1}.qtt{font-size:12.5px;color:var(--white);font-weight:500}
+.qts{font-size:10.5px;color:var(--muted);margin-top:1px}
+.qa{color:var(--muted);font-size:11px}
+
+/* habit list */
+.hitem{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)}
+.hitem:last-child{border:none}
+.hchk{width:20px;height:20px;border-radius:5px;border:1.5px solid var(--border);
+display:flex;align-items:center;justify-content:center;cursor:pointer;
+transition:all .15s;flex-shrink:0;font-size:11px}
+.hchk.done{background:rgba(52,211,153,.12);border-color:var(--green);color:var(--green)}
+.hn{flex:1;font-size:12.5px;color:var(--white)}
+.hn.done{color:var(--muted);text-decoration:line-through}
+.hstr{font-size:9.5px;color:var(--amber)}
+
+/* ── SETUP ── */
+.step-card{background:var(--s1);border:1px solid var(--border);border-radius:13px;
+padding:16px;margin-bottom:10px}
+.step-hdr{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.step-num{width:24px;height:24px;border-radius:6px;border:1px solid var(--dim);
+display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted);flex-shrink:0}
+.step-num.done{border-color:var(--green);color:var(--green);background:rgba(52,211,153,.08)}
+.step-title{font-size:13px;color:var(--white);font-weight:500}
+.step-desc{font-size:11.5px;color:var(--muted);line-height:1.65;margin-left:34px}
+.step-desc a{color:var(--accent);text-decoration:none}
+.code{background:var(--bg);border:1px solid var(--border);border-radius:7px;
+padding:9px 11px;font-size:10.5px;color:var(--accent);margin:7px 0 0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* cost table */
+.cost-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:12px}
+.cost-row:last-child{border:none;color:var(--white);font-weight:500}
+.cost-free{color:var(--green)}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.fi{animation:fadeUp .28s ease forwards}
+</style>
+</head>
+<body>
+
+<div class="glow glow-1"></div>
+<div class="glow glow-2"></div>
+
+<!-- LOCK SCREEN -->
+<div id="lockScreen">
+  <div class="lock-logo">AR<em>I</em>A</div>
+  <div class="lock-sub">Personal AI · Cloud Edition</div>
+  <input class="lock-input" id="lockInput" type="password" placeholder="••••••••"
+    onkeydown="if(event.key==='Enter')unlock()" autocomplete="current-password">
+  <button class="lock-btn" onclick="unlock()">UNLOCK</button>
+  <div class="lock-err" id="lockErr"></div>
+  <div class="lock-skip" onclick="skipLock()">No password set? Tap to continue</div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" style="display:none">
+  <header>
+    <div class="logo">AR<em>I</em>A</div>
+    <div class="hdr-right">
+      <div class="mod-chip" id="modChip">GENERAL</div>
+      <div class="status-led" id="statusLed"></div>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" onclick="tab('chat')" id="t-chat"><span class="ic">💬</span>Chat</button>
+    <button class="tab" onclick="tab('dash')"  id="t-dash"><span class="ic">⚡</span>Today</button>
+    <button class="tab" onclick="tab('health')" id="t-health"><span class="ic">🥗</span>Health</button>
+    <button class="tab" onclick="tab('train')" id="t-train"><span class="ic">🧠</span>Train</button>
+    <button class="tab" onclick="tab('setup')" id="t-setup"><span class="ic">⚙️</span>Setup</button>
+  </div>
+
+  <div class="panels">
+
+    <!-- CHAT -->
+    <div class="panel active" id="p-chat">
+      <div class="chat-scroll" id="chatScroll">
+        <div class="day-sep" id="todaySep">TODAY</div>
+        <div class="msg ai fi">
+          <div class="av">AI</div>
+          <div class="mb">
+            <div class="mm">ARIA · CLOUD</div>
+            <div class="bbl">Hey! I'm ARIA, your personal AI — running in the cloud 24/7.<br><br>I can help with your QA work, home, health &amp; food, and daily planning. Talk to me by typing or tapping the mic 🎙️</div>
+            <div class="mt" id="gt"></div>
+          </div>
+        </div>
+      </div>
+      <div class="typing-wrap" id="typWrap">
+        <div class="typing-row"><div class="av">AI</div><div class="typing-bbl"><div class="td"></div><div class="td"></div><div class="td"></div></div></div>
+      </div>
+      <div class="input-bar">
+        <div class="ir">
+          <div class="iw">
+            <textarea id="mi" rows="1" placeholder="Message ARIA..." onkeydown="hk(event)" oninput="ar(this)"></textarea>
+            <button class="vbtn" id="vbtn" onclick="toggleVoice()" title="Voice">🎙️</button>
+          </div>
+          <button class="sbtn" onclick="send()">↑</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="panel" id="p-dash">
+      <div class="scroll"><div class="p-inner">
+        <div class="sec">Today at a glance</div>
+        <div class="grid2">
+          <div class="kard a"><div class="ki">🔥</div><div class="kv">—<span class="ku">day</span></div><div class="kl">streak</div></div>
+          <div class="kard o"><div class="ki">🍽️</div><div class="kv" id="kCal">—<span class="ku">kcal</span></div><div class="kl">eaten today</div></div>
+          <div class="kard g"><div class="ki">💧</div><div class="kv">—<span class="ku">L</span></div><div class="kl">water</div></div>
+          <div class="kard r"><div class="ki">😴</div><div class="kv" id="kSlp">—<span class="ku">h</span></div><div class="kl">last night</div></div>
+        </div>
+        <div class="sec">Quick actions</div>
+        <div class="qlist">
+          <button class="qbtn" onclick="qa('Log my meal — I just had ')"><span class="qi">🍽️</span><div class="qt"><div class="qtt">Log a meal</div><div class="qts">Tell ARIA what you ate</div></div><span class="qa">›</span></button>
+          <button class="qbtn" onclick="qa('I just finished a workout. ')"><span class="qi">💪</span><div class="qt"><div class="qtt">Log workout</div><div class="qts">Record exercise session</div></div><span class="qa">›</span></button>
+          <button class="qbtn" onclick="qa('What should I eat for lunch today?')"><span class="qi">🥗</span><div class="qt"><div class="qtt">Meal suggestion</div><div class="qts">Personalised to your goals</div></div><span class="qa">›</span></button>
+          <button class="qbtn" onclick="qa('Write me a Playwright test for ')"><span class="qi">🧪</span><div class="qt"><div class="qtt">QA quick help</div><div class="qts">Tests, triage, coverage</div></div><span class="qa">›</span></button>
+          <button class="qbtn" onclick="qa('Turn off all the lights')"><span class="qi">🏠</span><div class="qt"><div class="qtt">Home control</div><div class="qts">Lights, thermostat, devices</div></div><span class="qa">›</span></button>
+          <button class="qbtn" onclick="qa('What are my tasks for today?')"><span class="qi">📅</span><div class="qt"><div class="qtt">Today\'s plan</div><div class="qts">Tasks and agenda</div></div><span class="qa">›</span></button>
+        </div>
+        <div class="sec">Habits</div>
+        <div id="habitList"><div style="font-size:11.5px;color:var(--muted);padding:10px 0">Ask ARIA to set up habits for you!</div></div>
+      </div></div>
+    </div>
+
+    <!-- HEALTH -->
+    <div class="panel" id="p-health">
+      <div class="scroll"><div class="p-inner">
+        <div class="sec">Health &amp; Food</div>
+        <div class="qlist">
+          <button class="qbtn" onclick="qa('Give me a summary of my nutrition today')"><span class="qi">📊</span><div class="qt"><div class="qtt">Nutrition summary</div><div class="qts">Calories, protein, macros</div></div><span class="qa">›</span></button>
+          <button class="qbtn" onclick="qa('Suggest a high-protein dinner for tonight')"><span class="qi">🥩</span><div class="qt"><div class="qtt">Dinner idea</div><div class="qts">Based on your goals</div></div><span class="qa">›</span></button>
+          <button class="qbtn" onclick="qa('Give me a 20-minute home workout, no equipment')"><span class="qi">🏃</span><div class="qt"><div class="qtt">Quick workout</div><div class="qts">No equipment needed</div></div><span class="qa">›</span></button>
+          <button class="qbtn" onclick="qa('How has my sleep been this week and how can I improve it?')"><span class="qi">😴</span><div class="qt"><div class="qtt">Sleep analysis</div><div class="qts">Trends and tips</div></div><span class="qa">›</span></button>
+          <button class="qbtn" onclick="qa('Create a weekly meal prep plan for me')"><span class="qi">📅</span><div class="qt"><div class="qtt">Weekly meal plan</div><div class="qts">Full prep guide</div></div><span class="qa">›</span></button>
+          <button class="qbtn" onclick="qa('I slept ')"><span class="qi">📝</span><div class="qt"><div class="qtt">Log sleep</div><div class="qts">Track last night</div></div><span class="qa">›</span></button>
+          <button class="qbtn" onclick="qa('My weight today is ')"><span class="qi">⚖️</span><div class="qt"><div class="qtt">Log weight</div><div class="qts">Track progress</div></div><span class="qa">›</span></button>
+          <button class="qbtn" onclick="qa('Review my health goals and how I\'m tracking this week')"><span class="qi">🎯</span><div class="qt"><div class="qtt">Weekly review</div><div class="qts">Goals and progress</div></div><span class="qa">›</span></button>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- TRAINING -->
+    <div class="panel" id="p-train">
+      <div class="scroll"><div class="p-inner">
+        <div class="sec">Personalise ARIA</div>
+
+        <div class="step-card">
+          <div class="step-hdr"><div class="step-num">1</div><div class="step-title">Tell ARIA about yourself</div></div>
+          <div class="step-desc">The fastest way to personalise ARIA is to just tell it things about you in chat. It will remember your preferences, goals, and habits across sessions via Supabase.</div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-hdr"><div class="step-num">2</div><div class="step-title">Set your health goals</div></div>
+          <div class="step-desc">Try saying:<br><br>
+            <em style="color:var(--accent)">"My daily goal is 2000 calories and 150g protein"</em><br>
+            <em style="color:var(--accent)">"I want to work out 4 times a week"</em><br>
+            <em style="color:var(--accent)">"I'm trying to lose 10kg by summer"</em>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-hdr"><div class="step-num">3</div><div class="step-title">Set up habits to track</div></div>
+          <div class="step-desc">Try saying:<br><br>
+            <em style="color:var(--accent)">"Add a habit: drink 2L of water daily"</em><br>
+            <em style="color:var(--accent)">"Add a habit: 30 min walk every morning"</em><br>
+            <em style="color:var(--accent)">"Show me my habit streaks"</em>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-hdr"><div class="step-num">4</div><div class="step-title">Teach ARIA your QA style</div></div>
+          <div class="step-desc">Paste your test cases or bug reports and say:<br><br>
+            <em style="color:var(--accent)">"Here's how I write test cases — learn my style: [paste]"</em><br>
+            <em style="color:var(--accent)">"I use Playwright with TypeScript and Jira for bug tracking"</em>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-hdr"><div class="step-num">5</div><div class="step-title">Fine-tune on your PC (advanced)</div></div>
+          <div class="step-desc">For deep personalisation, use the ARIA local files to fine-tune on your RTX 3060, then the model can be used as a fallback. See the README for details.</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- SETUP -->
+    <div class="panel" id="p-setup">
+      <div class="scroll"><div class="p-inner">
+        <div class="sec">Deploy to cloud (free)</div>
+
+        <div class="step-card">
+          <div class="step-hdr"><div class="step-num done">✓</div><div class="step-title">Get Groq API key (free)</div></div>
+          <div class="step-desc">Sign up at <a href="https://console.groq.com" target="_blank">console.groq.com</a> — no credit card. Create an API key. This is your free AI brain (14,400 requests/day).</div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-hdr"><div class="step-num">2</div><div class="step-title">Create free Supabase database</div></div>
+          <div class="step-desc">Go to <a href="https://supabase.com" target="_blank">supabase.com</a> → New project (free). Then run this SQL in the editor:</div>
+          <div class="code">create table conversations (id bigserial primary key, user_message text, ai_reply text, module text, created_at timestamptz default now());
+create table logs (id bigserial primary key, type text, data jsonb, created_at timestamptz default now());</div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-hdr"><div class="step-num">3</div><div class="step-title">Push code to GitHub</div></div>
+          <div class="step-desc">Upload the ARIA cloud folder to a new GitHub repo (can be private). Render will deploy directly from it.</div>
+          <div class="code">git init && git add . && git commit -m "ARIA cloud"
+git remote add origin https://github.com/YOU/aria.git
+git push -u origin main</div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-hdr"><div class="step-num">4</div><div class="step-title">Deploy on Render (free)</div></div>
+          <div class="step-desc">Go to <a href="https://render.com" target="_blank">render.com</a> → New → Web Service → connect your GitHub repo → set:<br><br>
+            <strong style="color:var(--white)">Build:</strong> <code style="color:var(--accent)">pip install -r requirements.txt</code><br>
+            <strong style="color:var(--white)">Start:</strong> <code style="color:var(--accent)">uvicorn app.main:app --host 0.0.0.0 --port $PORT</code>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-hdr"><div class="step-num">5</div><div class="step-title">Set environment variables</div></div>
+          <div class="step-desc">In Render → Environment, add these:</div>
+          <div class="code">GROQ_API_KEY=gsk_your_key_here
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_ANON_KEY=your_anon_key
+APP_PASSWORD=choose_a_password
+RENDER_EXTERNAL_URL=https://your-app.onrender.com</div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-hdr"><div class="step-num">6</div><div class="step-title">Keep-alive with UptimeRobot</div></div>
+          <div class="step-desc">Sign up free at <a href="https://uptimerobot.com" target="_blank">uptimerobot.com</a> → Add monitor → HTTP → your Render URL + /healthz → every 5 min. This prevents Render sleeping.</div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-hdr"><div class="step-num">7</div><div class="step-title">Add to iPhone home screen</div></div>
+          <div class="step-desc">Open your Render URL in Safari → Share → Add to Home Screen → ARIA appears as an app icon. Works like a native app.</div>
+        </div>
+
+        <div class="sec" style="margin-top:20px">Monthly cost</div>
+        <div class="kard" style="margin-bottom:4px">
+          <div class="cost-row"><span>Groq AI (Llama 3.3 70B)</span><span class="cost-free">FREE</span></div>
+          <div class="cost-row"><span>Groq Whisper (voice)</span><span class="cost-free">FREE</span></div>
+          <div class="cost-row"><span>Render web server</span><span class="cost-free">FREE</span></div>
+          <div class="cost-row"><span>Supabase database</span><span class="cost-free">FREE</span></div>
+          <div class="cost-row"><span>UptimeRobot pinger</span><span class="cost-free">FREE</span></div>
+          <div class="cost-row"><span style="color:var(--accent)">Total</span><span style="color:var(--accent)">$0 / month</span></div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const BASE = window.location.origin;
+let authToken = localStorage.getItem('ariaToken') || '';
+let history = [];
+let ws = null;
+let recording = false;
+let mediaRec = null;
+let chunks = [];
+
+// ── Lock screen ───────────────────────────────────────────────────────────────
+function unlock() {
+  const pw = document.getElementById('lockInput').value;
+  authToken = pw;
+  localStorage.setItem('ariaToken', pw);
+  boot();
+}
+function skipLock() {
+  authToken = '';
+  boot();
+}
+function boot() {
+  document.getElementById('lockScreen').classList.add('hidden');
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('gt').textContent = now();
+  connectWS();
+  checkStatus();
+}
+
+// Auto-unlock if token saved
+window.addEventListener('DOMContentLoaded', () => {
+  if (authToken) boot();
+});
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+function connectWS() {
+  const url = BASE.replace('https://','wss://').replace('http://','ws://') + '/ws';
+  try {
+    ws = new WebSocket(url);
+    ws.onopen = () => {
+      if (authToken) ws.send(JSON.stringify({token: authToken}));
+    };
+    ws.onmessage = onWsMsg;
+    ws.onerror = () => { ws = null; };
+    ws.onclose = () => { ws = null; setTimeout(connectWS, 4000); };
+  } catch(e) { ws = null; }
+}
+
+let sBubble = null, sText = '', sMod = 'general';
+function onWsMsg(e) {
+  const d = JSON.parse(e.data);
+  if (d.type === 'auth_ok') return;
+  if (d.type === 'auth_fail') {
+    document.getElementById('lockErr').textContent = 'Wrong password';
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('lockScreen').classList.remove('hidden');
+    return;
+  }
+  sMod = d.module || sMod;
+  if (!sBubble) { showTyping(false); sBubble = mkStreamBubble(sMod); sText = ''; }
+  sText += d.token || '';
+  sBubble.innerHTML = fmt(sText) + (d.done ? '' : '<span style="opacity:.4">▋</span>');
+  if (d.done) {
+    history.push({role:'assistant', content:sText});
+    sBubble = null; sText = '';
+    setMod(sMod); scrollBot();
+    if (voiceEnabled) speakIt(sText);
+  }
+  scrollBot();
+}
+
+// ── Send ──────────────────────────────────────────────────────────────────────
+async function send() {
+  const el = document.getElementById('mi');
+  const txt = el.value.trim();
+  if (!txt) return;
+  el.value = ''; ar(el);
+  await doSend(txt);
+}
+
+async function qa(txt) {
+  tab('chat');
+  const el = document.getElementById('mi');
+  el.value = txt; ar(el); el.focus();
+  // Pre-fill so user can complete it, or send directly if no trailing space
+  if (!txt.endsWith(' ')) await doSend(txt);
+}
+
+async function doSend(txt) {
+  addMsg('user', txt, 'you');
+  history.push({role:'user', content:txt});
+  showTyping(true);
+
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({message: txt}));
+    return;
+  }
+  // REST fallback
+  try {
+    const r = await fetch(`${BASE}/chat`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({message:txt, history:history.slice(-12), module:'auto', token:authToken})
+    });
+    const d = await r.json();
+    showTyping(false);
+    if (d.error) { addMsg('ai', `Error: ${d.error}`, 'error'); return; }
+    addMsg('ai', d.reply, d.module);
+    history.push({role:'assistant', content:d.reply});
+    setMod(d.module);
+    if (voiceEnabled) speakIt(d.reply);
+  } catch(err) {
+    showTyping(false);
+    addMsg('ai', "Can't reach ARIA. Check your connection.", 'error');
+  }
+}
+
+// ── DOM ───────────────────────────────────────────────────────────────────────
+function addMsg(role, txt, mod) {
+  const el = document.createElement('div');
+  el.className = `msg ${role} fi`;
+  el.innerHTML = `<div class="av">${role==='user'?'ME':'AI'}</div>
+    <div class="mb"><div class="mm">${role==='user'?'YOU':'ARIA · '+(mod||'').toUpperCase()}</div>
+    <div class="bbl">${fmt(txt)}</div><div class="mt">${now()}</div></div>`;
+  document.getElementById('chatScroll').appendChild(el);
+  scrollBot();
+}
+function mkStreamBubble(mod) {
+  const sc = document.getElementById('chatScroll');
+  const el = document.createElement('div');
+  el.className = 'msg ai fi';
+  const bbl = document.createElement('div'); bbl.className = 'bbl';
+  el.innerHTML = `<div class="av">AI</div><div class="mb"><div class="mm">ARIA · ${mod.toUpperCase()}</div></div>`;
+  el.querySelector('.mb').appendChild(bbl);
+  sc.appendChild(el); scrollBot();
+  return bbl;
+}
+function showTyping(show) {
+  document.getElementById('typWrap').style.display = show ? 'block' : 'none';
+  if (show) scrollBot();
+}
+function scrollBot() {
+  const s = document.getElementById('chatScroll');
+  s.scrollTop = s.scrollHeight;
+}
+function fmt(t) {
+  return t.replace(/```(\w+)?\n?([\s\S]*?)```/g,'<pre><code>$2</code></pre>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\n/g,'<br>');
+}
+function setMod(m) {
+  const c = document.getElementById('modChip');
+  c.textContent = (m||'general').toUpperCase();
+  c.className = 'mod-chip ' + (m||'general');
+}
+function now() { return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+
+// ── Voice ─────────────────────────────────────────────────────────────────────
+let voiceEnabled = false;
+async function toggleVoice() {
+  const btn = document.getElementById('vbtn');
+  if (!recording) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      mediaRec = new MediaRecorder(stream, {mimeType:'audio/webm'});
+      chunks = [];
+      mediaRec.ondataavailable = e => chunks.push(e.data);
+      mediaRec.onstop = async () => {
+        const blob = new Blob(chunks, {type:'audio/webm'});
+        const fd = new FormData(); fd.append('file', blob, 'voice.webm');
+        try {
+          const r = await fetch(`${BASE}/voice/transcribe`, {method:'POST', body:fd});
+          const d = await r.json();
+          if (d.text) await doSend(d.text);
+          else addMsg('ai', "Couldn't hear that. Try again.", 'error');
+        } catch { addMsg('ai', "Voice error. Check connection.", 'error'); }
+        stream.getTracks().forEach(t => t.stop());
+      };
+      mediaRec.start(); recording = true;
+      btn.textContent = '⏹️'; btn.classList.add('rec');
+    } catch { alert('Microphone access needed. Allow it in Safari Settings.'); }
+  } else {
+    mediaRec.stop(); recording = false;
+    btn.textContent = '🎙️'; btn.classList.remove('rec');
+  }
+}
+
+function speakIt(txt) {
+  if (!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(txt.replace(/<[^>]+>/g,'').substring(0,300));
+  u.rate = 1.05; window.speechSynthesis.speak(u);
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function tab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`t-${name}`).classList.add('active');
+  document.getElementById(`p-${name}`).classList.add('active');
+}
+
+// ── Input ─────────────────────────────────────────────────────────────────────
+function ar(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,90)+'px'; }
+function hk(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();} }
+
+// ── Status ────────────────────────────────────────────────────────────────────
+async function checkStatus() {
+  try {
+    const r = await fetch(`${BASE}/status`);
+    const d = await r.json();
+    const led = document.getElementById('statusLed');
+    if (!d.groq_ready) led.style.background = 'var(--amber)';
+  } catch {
+    document.getElementById('statusLed').style.background = 'var(--red)';
+  }
+}
+</script>
+</body>
+</html>
