@@ -7,9 +7,13 @@ services:
     plan: free
     envVars:
       - key: GROQ_API_KEY
-        sync: false          # You fill this in Render dashboard
+        sync: false
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
+      - key: ARIA_VOICE
+        value: hannah
+      - key: GEMINI_API_KEY
+        sync: false
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY
