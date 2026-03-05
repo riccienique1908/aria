@@ -645,8 +645,42 @@ function boot(){
   isAdmin=me.role==='admin';const dn=me.display_name||me.email||'User';
   document.getElementById('uav').textContent=dn[0].toUpperCase();document.getElementById('uname').textContent=dn.split('@')[0];document.getElementById('uemail').textContent=me.email||'';document.getElementById('sbUser').textContent=dn.split('@')[0];
   if(isAdmin){document.getElementById('sb-admin').style.display='flex';loadUsers();}
-  loadProfile();loadSkills();connectWS();checkStatus();
+  loadProfile();loadSkills();connectWS();checkStatus();loadHistory();
 }
+
+// Load recent conversation history from DB on startup
+async function loadHistory(){
+  try{
+    const r=await fetch(B+'/history',{headers:{Authorization:`Bearer ${JWT}`}});
+    if(!r.ok)return;
+    const rows=await r.json();
+    if(!rows||!rows.length)return;
+    // Clear welcome message, replace with real history
+    const msgsEl=document.getElementById('cmsgs');
+    msgsEl.innerHTML='';
+    rows.forEach(row=>{
+      if(row.user_message){
+        const el=document.createElement('div');el.className='mw user';
+        el.innerHTML=`<div class="mav">${me.display_name?.[0]?.toUpperCase()||'U'}</div><div class="mbody"><div class="mmeta">you · ${fmtTime(row.created_at)}</div><div class="bubble">${fmt(row.user_message)}</div></div>`;
+        msgsEl.appendChild(el);
+      }
+      if(row.ai_reply){
+        const el=document.createElement('div');el.className='mw ai';
+        el.innerHTML=`<div class="mav">AN</div><div class="mbody"><div class="mmeta">Andros · ${fmtTime(row.created_at)}</div><div class="bubble">${fmt(row.ai_reply)}</div></div>`;
+        msgsEl.appendChild(el);
+        // Also seed chatHist so in-session context works
+        chatHist.push({role:'user',content:row.user_message},{role:'assistant',content:row.ai_reply});
+      }
+    });
+    // Show a "session resumed" indicator
+    const sep=document.createElement('div');
+    sep.style.cssText='text-align:center;font-size:11px;color:var(--muted);padding:8px;font-family:var(--mono)';
+    sep.textContent='── session resumed ──';
+    msgsEl.appendChild(sep);
+    scrl();
+  }catch(e){console.log('History load skipped:',e);}
+}
+function fmtTime(iso){if(!iso)return now();try{return new Date(iso).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}catch{return now();}}
 
 // ── WebSocket ──
 function connectWS(){

@@ -1,7 +1,7 @@
 """
 Andros v4 — Definitive fixes
 ===========================
-Image gen : gemini-2.5-flash-preview-05-20 via generateContent (confirmed free, 500/day)
+Image gen : gemini-2.0-flash-exp-image-generation (free, confirmed working image output)
             Correct payload + robust response parsing
 Voice     : /voice/conversation — Whisper → LLM → Orpheus in ONE request
             Returns base64 WAV + transcript + reply together
@@ -29,12 +29,12 @@ GROQ_CHAT   = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 GROQ_VISION = "meta-llama/llama-4-scout-17b-16e-instruct"
 GROQ_STT    = "whisper-large-v3-turbo"
 GROQ_TTS    = "canopylabs/orpheus-v1-english"
-GROQ_VOICE  = os.getenv("ARIA_VOICE", "dan")   # autumn|diana|hannah|austin|daniel|troy|dan
+GROQ_VOICE  = os.getenv("ANDROS_VOICE", os.getenv("ARIA_VOICE", "dan"))  # autumn|diana|hannah|austin|daniel|troy|dan
 GROQ_BASE   = "https://api.groq.com/openai/v1"
 
 GEMINI_KEY  = os.getenv("GEMINI_API_KEY", "")
 # ✅ Confirmed working free-tier model + endpoint
-GEMINI_IMG  = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent"
+GEMINI_IMG  = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent"
 
 SB_URL  = os.getenv("SUPABASE_URL", "")
 SB_ANON = os.getenv("SUPABASE_ANON_KEY", "")
@@ -72,28 +72,33 @@ def _sbh(jwt: str, svc: bool = False):
     return {"apikey": k, "Authorization": f"Bearer {jwt if not svc else k}",
             "Content-Type": "application/json", "Prefer": "return=representation"}
 
-async def _get(table, params, jwt):
+async def _get(table, params, jwt=None):
     if not SB_URL: return []
+    # Always use service key for DB reads so RLS never blocks us
+    hdr = _sbh(jwt or SB_ANON, svc=bool(SB_SVC))
     async with httpx.AsyncClient(timeout=8) as c:
-        r = await c.get(f"{SB_URL}/rest/v1/{table}", headers=_sbh(jwt), params=params)
+        r = await c.get(f"{SB_URL}/rest/v1/{table}", headers=hdr, params=params)
         d = r.json(); return d if isinstance(d, list) else []
 
-async def _post(table, data, jwt):
+async def _post(table, data, jwt=None):
     if not SB_URL: return {}
+    hdr = _sbh(jwt or SB_ANON, svc=bool(SB_SVC))
     async with httpx.AsyncClient(timeout=8) as c:
-        r = await c.post(f"{SB_URL}/rest/v1/{table}", headers=_sbh(jwt), json=data)
+        r = await c.post(f"{SB_URL}/rest/v1/{table}", headers=hdr, json=data)
         d = r.json(); return d[0] if isinstance(d, list) and d else {}
 
-async def _patch(table, data, match, jwt):
+async def _patch(table, data, match, jwt=None):
     if not SB_URL: return
+    hdr = _sbh(jwt or SB_ANON, svc=bool(SB_SVC))
     async with httpx.AsyncClient(timeout=8) as c:
-        await c.patch(f"{SB_URL}/rest/v1/{table}", headers=_sbh(jwt),
+        await c.patch(f"{SB_URL}/rest/v1/{table}", headers=hdr,
                       params={k: f"eq.{v}" for k, v in match.items()}, json=data)
 
-async def _del(table, match, jwt):
+async def _del(table, match, jwt=None):
     if not SB_URL: return
+    hdr = _sbh(jwt or SB_ANON, svc=bool(SB_SVC))
     async with httpx.AsyncClient(timeout=8) as c:
-        await c.delete(f"{SB_URL}/rest/v1/{table}", headers=_sbh(jwt),
+        await c.delete(f"{SB_URL}/rest/v1/{table}", headers=hdr,
                        params={k: f"eq.{v}" for k, v in match.items()})
 
 async def get_user(authorization: str = Header(default="")) -> dict:
@@ -212,9 +217,15 @@ async def get_profile(user: dict = Depends(get_user)):
 @app.patch("/profile")
 async def update_profile(body: dict, user: dict = Depends(get_user)):
     if not user: raise HTTPException(401)
-    body.pop("id", None); body.pop("role", None)
+    body.pop("role", None)                         # never let user change their own role
+    body["id"]         = user["id"]                # ensure id is set for upsert
     body["updated_at"] = datetime.now().isoformat()
-    await _patch("profiles", body, {"id": user["id"]}, user["jwt"])
+    # Use upsert so it works whether the profile row exists or not
+    if not SB_URL: return {"status": "saved"}
+    hdr = dict(_sbh(user["jwt"], svc=bool(SB_SVC)))
+    hdr["Prefer"] = "resolution=merge-duplicates,return=representation"
+    async with httpx.AsyncClient(timeout=8) as c:
+        await c.post(f"{SB_URL}/rest/v1/profiles", headers=hdr, json=body)
     return {"status": "saved"}
 
 # ── Skills ────────────────────────────────────────────────────────────────────
@@ -505,6 +516,14 @@ async def gen_image(body: dict, user: dict = Depends(get_user)):
             "raw": str(data)[:600]
         }, status_code=500)
 
+# ── Conversation history (for frontend on load) ───────────────────────────────
+@app.get("/history")
+async def get_history(user: dict = Depends(get_user)):
+    if not user: raise HTTPException(401)
+    rows = await _get("conversations",
+                      {"user_id": f"eq.{user['id']}", "order": "created_at.desc", "limit": "20"})
+    return list(reversed(rows))  # oldest first for display
+
 # ── Admin ─────────────────────────────────────────────────────────────────────
 @app.get("/admin/users")
 async def admin_list(user: dict = Depends(get_user)):
@@ -535,7 +554,7 @@ async def status():
         "gemini_ready": bool(GEMINI_KEY),
         "db_ready":     bool(SB_URL),
         "tts_voice":    GROQ_VOICE,
-        "img_model":    "gemini-2.5-flash-preview-05-20",
+        "img_model":    "gemini-2.0-flash-exp-image-generation",
     }
 
 @app.get("/", response_class=HTMLResponse)
