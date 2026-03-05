@@ -11,7 +11,11 @@ services:
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
       - key: ARIA_VOICE
+<<<<<<< HEAD
         value: dan
+=======
+        value: hannah
+>>>>>>> ec931570842916d24e0fc38106a5b9433412c439
       - key: GEMINI_API_KEY
         sync: false
       - key: SUPABASE_URL

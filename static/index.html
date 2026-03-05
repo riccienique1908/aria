@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ARIA">
+<<<<<<< HEAD
 <title>ARIA</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <style>
@@ -252,6 +253,282 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--fg);font-
   <div class="cbtns">
     <button class="cbtn mic" id="cmicBtn" onclick="toggleCallMic()"><svg width="22" height="22"><use href="#i-mic"/></svg></button>
     <button class="cbtn end" onclick="endCall()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92v3a2 2 0 0 1-2.18 2A19.8 19.8 0 0 1 4.69 12a19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.91"/></svg></button>
+=======
+<title>ARIA v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04070a;--s1:#080f14;--s2:#0c1620;--border:#102030;
+  --a:#38bdf8;--a2:#0ea5e9;--dim:#1a3a55;
+  --text:#c8dff0;--muted:#2e6080;--white:#eef6fd;
+  --g:#34d399;--o:#fbbf24;--r:#f87171;--pu:#a78bfa;
+  --sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Geist Mono',monospace}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;
+background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.025) 3px,rgba(0,0,0,.025) 4px)}
+.orb{position:fixed;pointer-events:none;z-index:0;border-radius:50%;filter:blur(100px);opacity:.08}
+.o1{top:-15vh;left:-5vw;width:55vw;height:55vh;background:var(--a);animation:orb1 22s ease-in-out infinite alternate}
+.o2{bottom:-15vh;right:-5vw;width:50vw;height:50vh;background:#6366f1;animation:orb2 28s ease-in-out infinite alternate}
+@keyframes orb1{0%{transform:translate(0,0)}100%{transform:translate(12vw,8vh)}}
+@keyframes orb2{0%{transform:translate(0,0)}100%{transform:translate(-8vw,-6vh)}}
+
+/* ── Lock ── */
+#lock{position:fixed;inset:0;z-index:500;display:flex;flex-direction:column;
+align-items:center;justify-content:center;background:var(--bg);padding:40px 32px}
+#lock.h{display:none}
+.llogo{font-family:'Instrument Serif',serif;font-size:56px;font-style:italic;color:var(--white);letter-spacing:-3px;margin-bottom:6px}
+.llogo em{color:var(--a)}
+.lsub{font-size:10px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-bottom:50px}
+.linp{width:100%;max-width:280px;background:var(--s1);border:1px solid var(--border);border-radius:12px;
+padding:14px 18px;color:var(--white);font-family:'Geist Mono',monospace;font-size:15px;outline:none;
+text-align:center;letter-spacing:4px;margin-bottom:12px;transition:border-color .2s}
+.linp:focus{border-color:var(--a)}
+.lbtn{width:100%;max-width:280px;background:var(--a2);color:var(--bg);border:none;border-radius:12px;
+padding:14px;font-family:'Geist Mono',monospace;font-size:13px;font-weight:500;cursor:pointer;
+letter-spacing:1px;transition:all .15s}
+.lbtn:active{transform:scale(.98)}
+.lerr{font-size:11px;color:var(--r);margin-top:8px;min-height:16px;text-align:center}
+.lskip{font-size:11px;color:var(--muted);margin-top:20px;cursor:pointer;letter-spacing:1px}
+.lskip:hover{color:var(--a)}
+
+/* ── App ── */
+#app{display:flex;flex-direction:column;height:100%;position:relative;z-index:1}
+header{padding:calc(var(--sat) + 14px) 18px 12px;display:flex;align-items:center;
+justify-content:space-between;border-bottom:1px solid var(--border);
+background:rgba(4,7,10,.94);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);flex-shrink:0}
+.logo{font-family:'Instrument Serif',serif;font-size:25px;font-style:italic;color:var(--white);letter-spacing:-1px}
+.logo em{color:var(--a)}
+.hr{display:flex;align-items:center;gap:8px}
+.mchip{font-size:9px;padding:3px 9px;border-radius:100px;background:var(--s2);
+border:1px solid var(--border);color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;transition:all .3s}
+.mchip.work{border-color:rgba(56,189,248,.3);color:var(--a)}
+.mchip.health{border-color:rgba(52,211,153,.3);color:var(--g)}
+.mchip.food{border-color:rgba(251,191,36,.3);color:var(--o)}
+.mchip.home{border-color:rgba(248,113,113,.3);color:var(--r)}
+.mchip.planning{border-color:rgba(167,139,250,.3);color:var(--pu)}
+.led{width:7px;height:7px;border-radius:50%;background:var(--g);animation:led 2.5s ease infinite;flex-shrink:0}
+@keyframes led{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(52,211,153,.4)}50%{opacity:.5;box-shadow:0 0 0 4px rgba(52,211,153,0)}}
+
+/* Tabs */
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);background:var(--s1);
+border-bottom:1px solid var(--border);flex-shrink:0}
+.tab{display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 2px 8px;
+border:none;background:none;color:var(--muted);cursor:pointer;font-size:8.5px;
+letter-spacing:.8px;text-transform:uppercase;font-family:'Geist Mono',monospace;
+transition:all .2s;border-bottom:2px solid transparent;user-select:none;-webkit-touch-callout:none}
+.tab .ic{font-size:17px;line-height:1}
+.tab.active{color:var(--a);border-bottom-color:var(--a)}
+.tab:active{background:rgba(56,189,248,.04)}
+.panels{flex:1;overflow:hidden;position:relative}
+.panel{display:none;height:100%;flex-direction:column}
+.panel.active{display:flex}
+.scr{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.scr::-webkit-scrollbar{width:2px}
+.scr::-webkit-scrollbar-thumb{background:var(--border)}
+
+/* ── Chat ── */
+.cscr{flex:1;overflow-y:auto;padding:14px 14px 0;-webkit-overflow-scrolling:touch;scroll-behavior:smooth}
+.cscr::-webkit-scrollbar{width:2px}.cscr::-webkit-scrollbar-thumb{background:var(--border)}
+.dsep{display:flex;align-items:center;gap:8px;margin:10px 0;font-size:9px;
+color:var(--muted);letter-spacing:2px;text-transform:uppercase}
+.dsep::before,.dsep::after{content:'';flex:1;height:1px;background:var(--border)}
+.msg{display:flex;gap:9px;margin-bottom:12px;align-items:flex-end}
+.msg.user{flex-direction:row-reverse}
+.av{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;
+justify-content:center;font-size:9px;font-weight:500;flex-shrink:0;letter-spacing:.5px}
+.msg.ai .av{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);color:var(--a)}
+.msg.user .av{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);color:var(--g)}
+.mb{max-width:82%}
+.mm{font-size:8.5px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px}
+.msg.user .mm{text-align:right}
+.bbl{padding:10px 13px;border-radius:11px;font-size:13px;line-height:1.65;word-break:break-word}
+.msg.ai  .bbl{background:var(--s2);border:1px solid var(--border);border-bottom-left-radius:3px}
+.msg.user .bbl{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);
+border-bottom-right-radius:3px;color:var(--white)}
+.bbl pre{background:var(--bg);border:1px solid var(--border);border-radius:7px;
+padding:9px;margin:7px 0;font-size:10.5px;overflow-x:auto}
+.bbl code{background:rgba(56,189,248,.08);padding:1px 5px;border-radius:4px;font-size:11.5px;color:var(--a)}
+.bbl img{max-width:100%;border-radius:8px;margin-top:8px;display:block}
+.mt{font-size:8.5px;color:var(--muted);margin-top:3px}
+.msg.user .mt{text-align:right}
+.typwrap{padding:0 14px 8px;display:none}
+.typrow{display:flex;gap:9px;align-items:flex-end}
+.typbbl{display:flex;align-items:center;gap:4px;padding:10px 13px;
+background:var(--s2);border:1px solid var(--border);border-radius:11px;border-bottom-left-radius:3px}
+.td{width:5px;height:5px;border-radius:50%;background:var(--a);animation:td 1.2s ease infinite}
+.td:nth-child(2){animation-delay:.2s}.td:nth-child(3){animation-delay:.4s}
+@keyframes td{0%,100%{opacity:.25;transform:scale(1)}50%{opacity:1;transform:scale(1.35)}}
+
+/* Input bar */
+.ibar{padding:10px 12px calc(10px + var(--sab));background:rgba(4,7,10,.97);
+backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--border);flex-shrink:0}
+.irow{display:flex;gap:7px;align-items:flex-end}
+.iw{flex:1;background:var(--s1);border:1px solid var(--border);border-radius:13px;
+display:flex;align-items:flex-end;gap:5px;padding:6px 6px 6px 13px;transition:border-color .2s}
+.iw:focus-within{border-color:rgba(56,189,248,.35)}
+#mi{flex:1;background:none;border:none;outline:none;color:var(--white);
+font-family:'Geist Mono',monospace;font-size:13.5px;line-height:1.4;
+resize:none;max-height:90px;overflow-y:auto;padding:3px 0}
+#mi::placeholder{color:var(--muted)}
+.ibtn{width:34px;height:34px;border-radius:9px;border:none;display:flex;
+align-items:center;justify-content:center;cursor:pointer;font-size:15px;transition:all .15s;flex-shrink:0}
+.vbtn{background:rgba(56,189,248,.08);color:var(--a)}
+.vbtn.rec{background:rgba(248,113,113,.12);color:var(--r);animation:vrec 1s ease infinite}
+@keyframes vrec{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.imgbtn{background:rgba(167,139,250,.08);color:var(--pu)}
+.sbtn{background:var(--a2);color:var(--bg)}
+.sbtn:active{background:var(--a);transform:scale(.96)}
+.sbtn:disabled{opacity:.25}
+#imgInput{display:none}
+
+/* ── Voice call overlay ── */
+#callOverlay{display:none;position:fixed;inset:0;z-index:200;
+background:rgba(4,7,10,.97);backdrop-filter:blur(30px);
+flex-direction:column;align-items:center;justify-content:center;gap:24px}
+#callOverlay.active{display:flex}
+.call-av{width:80px;height:80px;border-radius:50%;
+background:rgba(56,189,248,.12);border:2px solid var(--a);
+display:flex;align-items:center;justify-content:center;
+font-family:'Instrument Serif',serif;font-size:28px;font-style:italic;color:var(--a);
+position:relative}
+.call-av::before{content:'';position:absolute;inset:-8px;border-radius:50%;
+border:1px solid rgba(56,189,248,.2);animation:callring 2s ease infinite}
+.call-av::after{content:'';position:absolute;inset:-16px;border-radius:50%;
+border:1px solid rgba(56,189,248,.1);animation:callring 2s ease .4s infinite}
+@keyframes callring{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.4)}}
+.call-name{font-family:'Instrument Serif',serif;font-size:24px;color:var(--white);font-style:italic}
+.call-status{font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase}
+.call-btns{display:flex;gap:20px;margin-top:12px}
+.call-btn{width:56px;height:56px;border-radius:50%;border:none;
+display:flex;align-items:center;justify-content:center;cursor:pointer;
+font-size:20px;transition:all .2s}
+.call-btn.mic{background:rgba(56,189,248,.12);border:1px solid var(--a);color:var(--a)}
+.call-btn.mic.muted{background:rgba(248,113,113,.12);border-color:var(--r);color:var(--r)}
+.call-btn.end{background:var(--r);color:white}
+.call-btn:active{transform:scale(.92)}
+#callWave{display:flex;align-items:center;gap:4px;height:30px}
+.wave-bar{width:4px;border-radius:2px;background:var(--a);opacity:.3;
+animation:wave 1s ease infinite}
+.wave-bar:nth-child(2){animation-delay:.1s;height:16px}
+.wave-bar:nth-child(3){animation-delay:.2s;height:24px}
+.wave-bar:nth-child(4){animation-delay:.3s;height:12px}
+.wave-bar:nth-child(5){animation-delay:.4s;height:20px}
+.wave-bar:nth-child(6){animation-delay:.15s;height:10px}
+.wave-bar:nth-child(7){animation-delay:.25s;height:18px}
+@keyframes wave{0%,100%{transform:scaleY(1);opacity:.3}50%{transform:scaleY(1.8);opacity:1}}
+#callWave.speaking .wave-bar{opacity:1}
+
+/* Dashboard */
+.pin{padding:14px}
+.sec{font-size:9px;color:var(--muted);letter-spacing:2.5px;text-transform:uppercase;
+margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.sec::after{content:'';flex:1;height:1px;background:var(--border)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:18px}
+.kard{background:var(--s1);border:1px solid var(--border);border-radius:13px;
+padding:14px;position:relative;overflow:hidden;transition:transform .15s}
+.kard:active{transform:scale(.97)}
+.kard::after{content:'';position:absolute;top:0;left:0;right:0;height:1.5px}
+.kard.a::after{background:linear-gradient(90deg,var(--a),transparent)}
+.kard.g::after{background:linear-gradient(90deg,var(--g),transparent)}
+.kard.o::after{background:linear-gradient(90deg,var(--o),transparent)}
+.kard.r::after{background:linear-gradient(90deg,var(--r),transparent)}
+.ki{font-size:20px;margin-bottom:6px}
+.kv{font-family:'Instrument Serif',serif;font-size:26px;color:var(--white)}
+.ku{font-size:10px;color:var(--muted);margin-left:2px}
+.kl{font-size:9.5px;color:var(--muted);margin-top:1px;letter-spacing:.5px}
+.ql{display:flex;flex-direction:column;gap:7px;margin-bottom:18px}
+.qbtn{background:var(--s1);border:1px solid var(--border);border-radius:11px;
+padding:12px 14px;display:flex;align-items:center;gap:11px;cursor:pointer;transition:all .15s;text-align:left}
+.qbtn:active{background:var(--s2);transform:scale(.99)}
+.qi{font-size:18px;width:28px;text-align:center;flex-shrink:0}
+.qt{flex:1}.qtt{font-size:12.5px;color:var(--white);font-weight:500}
+.qts{font-size:10.5px;color:var(--muted);margin-top:1px}
+.qa{color:var(--muted);font-size:11px}
+
+/* Profile panel */
+.prow{display:flex;align-items:center;justify-content:space-between;
+padding:12px 0;border-bottom:1px solid var(--border)}
+.prow:last-child{border:none}
+.plbl{font-size:12.5px;color:var(--white)}
+.psub{font-size:10.5px;color:var(--muted);margin-top:2px}
+.pinput{background:var(--s2);border:1px solid var(--border);border-radius:8px;
+padding:6px 10px;color:var(--white);font-family:'Geist Mono',monospace;
+font-size:12px;outline:none;width:130px;transition:border-color .2s;text-align:right}
+.pinput:focus{border-color:var(--a)}
+.save-btn{background:var(--a2);color:var(--bg);border:none;border-radius:8px;
+padding:10px 20px;font-family:'Geist Mono',monospace;font-size:11px;
+cursor:pointer;letter-spacing:1px;margin-top:16px;width:100%;transition:all .15s}
+.save-btn:active{background:var(--a)}
+
+/* Image gen */
+.imgprev{width:100%;border-radius:12px;margin-top:10px;display:none}
+.gen-input{background:var(--s1);border:1px solid var(--border);border-radius:11px;
+padding:12px 14px;color:var(--white);font-family:'Geist Mono',monospace;
+font-size:13px;outline:none;width:100%;resize:none;transition:border-color .2s;
+line-height:1.5}
+.gen-input:focus{border-color:rgba(167,139,250,.4)}
+.gen-btn{background:rgba(167,139,250,.15);color:var(--pu);border:1px solid rgba(167,139,250,.3);
+border-radius:10px;padding:11px 20px;font-family:'Geist Mono',monospace;font-size:12px;
+cursor:pointer;letter-spacing:.5px;margin-top:10px;width:100%;transition:all .15s}
+.gen-btn:active{background:rgba(167,139,250,.25)}
+.gen-btn:disabled{opacity:.3}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.fi{animation:fadeUp .28s ease forwards}
+</style>
+</head>
+<body>
+<div class="orb o1"></div><div class="orb o2"></div>
+
+<!-- LOCK -->
+<div id="lock">
+  <div class="llogo">AR<em>I</em>A</div>
+  <div class="lsub">Personal AI · v2</div>
+  <input class="linp" id="linp" type="password" placeholder="••••••••"
+    onkeydown="if(event.key==='Enter')unlock()" autocomplete="current-password">
+  <button class="lbtn" onclick="unlock()">UNLOCK</button>
+  <div class="lerr" id="lerr"></div>
+  <div class="lskip" onclick="skipLock()">No password? Tap to continue</div>
+</div>
+
+<!-- VOICE CALL OVERLAY -->
+<div id="callOverlay">
+  <div class="call-av">AI</div>
+  <div class="call-name">ARIA</div>
+  <div class="call-status" id="callStatus">LISTENING...</div>
+  <div id="callWave">
+    <div class="wave-bar" style="height:8px"></div>
+    <div class="wave-bar"></div>
+    <div class="wave-bar"></div>
+    <div class="wave-bar"></div>
+    <div class="wave-bar"></div>
+    <div class="wave-bar"></div>
+    <div class="wave-bar"></div>
+  </div>
+  <div class="call-btns">
+    <button class="call-btn mic" id="callMicBtn" onclick="toggleCallMic()">🎙️</button>
+    <button class="call-btn end" onclick="endCall()">📵</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+  <header>
+    <div class="logo">AR<em>I</em>A</div>
+    <div class="hr">
+      <div class="mchip" id="mchip">GENERAL</div>
+      <div class="led" id="led"></div>
+    </div>
+  </header>
+  <div class="tabs">
+    <button class="tab active" onclick="sw('chat')" id="t-chat"><span class="ic">💬</span>Chat</button>
+    <button class="tab" onclick="sw('dash')"   id="t-dash"><span class="ic">⚡</span>Today</button>
+    <button class="tab" onclick="sw('img')"    id="t-img"><span class="ic">🎨</span>Images</button>
+    <button class="tab" onclick="sw('prof')"   id="t-prof"><span class="ic">👤</span>Profile</button>
+    <button class="tab" onclick="sw('setup')"  id="t-setup"><span class="ic">⚙️</span>Setup</button>
+>>>>>>> ec931570842916d24e0fc38106a5b9433412c439
   </div>
   <div class="ctip" id="ctip">Tap mic to speak — tap again when done</div>
 </div>
@@ -279,6 +556,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--fg);font-
   </div>
 </div>
 
+<<<<<<< HEAD
 <!-- APP -->
 <div id="app">
   <div class="app-body">
@@ -316,8 +594,102 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--fg);font-
             <div class="vcrow"><button class="vclink" onclick="startCall()"><svg width="12" height="12"><use href="#i-phone"/></svg> Voice Call Mode</button></div>
           </div>
           <input type="file" id="imgfile" accept="image/*" onchange="sendImgFile(this)">
+=======
+    <!-- CHAT -->
+    <div class="panel active" id="p-chat">
+      <div class="cscr" id="cscr">
+        <div class="dsep">TODAY</div>
+        <div class="msg ai fi">
+          <div class="av">AI</div>
+          <div class="mb">
+            <div class="mm">ARIA · CLOUD v2</div>
+            <div class="bbl">Hey! I'm ARIA — I now remember you between sessions, can hear your voice, see images you send me, and generate images too.<br><br>What can I help you with? 💬🎙️🖼️</div>
+            <div class="mt" id="gt"></div>
+          </div>
         </div>
+      </div>
+      <div class="typwrap" id="typwrap">
+        <div class="typrow"><div class="av">AI</div><div class="typbbl"><div class="td"></div><div class="td"></div><div class="td"></div></div></div>
+      </div>
+      <div class="ibar">
+        <div class="irow">
+          <div class="iw">
+            <textarea id="mi" rows="1" placeholder="Message ARIA..." onkeydown="hk(event)" oninput="ar(this)"></textarea>
+            <button class="ibtn imgbtn" onclick="document.getElementById('imgInput').click()" title="Send image">🖼️</button>
+            <button class="ibtn vbtn" id="vbtn" onclick="toggleVoice()" title="Voice message">🎙️</button>
+          </div>
+          <button class="ibtn sbtn" onclick="sendMsg()" style="width:40px;height:40px">↑</button>
+        </div>
+        <div style="display:flex;justify-content:center;margin-top:8px">
+          <button onclick="startCall()" style="background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);
+            color:var(--g);border-radius:20px;padding:6px 18px;font-family:'Geist Mono',monospace;
+            font-size:10px;cursor:pointer;letter-spacing:1px">📞 VOICE CALL MODE</button>
+        </div>
+      </div>
+      <input type="file" id="imgInput" accept="image/*" onchange="sendImage(this)">
+    </div>
 
+    <!-- DASHBOARD -->
+    <div class="panel" id="p-dash">
+      <div class="scr"><div class="pin">
+        <div class="sec">Today</div>
+        <div class="g2">
+          <div class="kard a"><div class="ki">🧠</div><div class="kv" id="kMem">—</div><div class="kl">msgs remembered</div></div>
+          <div class="kard g"><div class="ki">🔥</div><div class="kv">—<span class="ku">day</span></div><div class="kl">streak</div></div>
+          <div class="kard o"><div class="ki">🍽️</div><div class="kv">—<span class="ku">kcal</span></div><div class="kl">logged today</div></div>
+          <div class="kard r"><div class="ki">😴</div><div class="kv">—<span class="ku">h</span></div><div class="kl">last night</div></div>
+        </div>
+        <div class="sec">Quick actions</div>
+        <div class="ql">
+          <button class="qbtn" onclick="qa('Log my meal — I just had ')"><span class="qi">🍽️</span><div class="qt"><div class="qtt">Log a meal</div><div class="qts">Track calories & protein</div></div><span class="qa">›</span></button>
+          <button class="qbtn" onclick="qa('I just finished a workout: ')"><span class="qi">💪</span><div class="qt"><div class="qtt">Log workout</div><div class="qts">Record exercise session</div></div><span class="qa">›</span></button>
+          <button class="qbtn" onclick="qa('What should I eat for lunch today?')"><span class="qi">🥗</span><div class="qt"><div class="qtt">Meal suggestion</div><div class="qts">Based on your goals</div></div><span class="qa">›</span></button>
+          <button class="qbtn" onclick="qa('Write Playwright tests for ')"><span class="qi">🧪</span><div class="qt"><div class="qtt">QA help</div><div class="qts">Tests, bugs, coverage</div></div><span class="qa">›</span></button>
+          <button class="qbtn" onclick="qa('What are my tasks for today?')"><span class="qi">📅</span><div class="qt"><div class="qtt">Daily plan</div><div class="qts">Tasks and priorities</div></div><span class="qa">›</span></button>
+          <button class="qbtn" onclick="startCall()"><span class="qi">📞</span><div class="qt"><div class="qtt">Voice call ARIA</div><div class="qts">Hands-free conversation</div></div><span class="qa">›</span></button>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- IMAGES -->
+    <div class="panel" id="p-img">
+      <div class="scr"><div class="pin">
+        <div class="sec">Generate an image</div>
+        <textarea class="gen-input" id="genPrompt" rows="3"
+          placeholder="Describe what you want to create... e.g. 'A healthy meal prep bowl with salmon, quinoa and vegetables, food photography, warm lighting'"></textarea>
+        <button class="gen-btn" id="genBtn" onclick="generateImage()">✨ Generate image</button>
+        <img id="genResult" class="imgprev" alt="Generated image">
+
+        <div class="sec" style="margin-top:24px">Analyze an image</div>
+        <div class="ql">
+          <button class="qbtn" onclick="document.getElementById('analyzeInput').click()">
+            <span class="qi">📷</span>
+            <div class="qt"><div class="qtt">Upload image to analyze</div><div class="qts">ARIA will describe and answer questions about it</div></div>
+            <span class="qa">›</span>
+          </button>
+        </div>
+        <input type="file" id="analyzeInput" accept="image/*" style="display:none" onchange="analyzeImage(this)">
+
+        <div class="sec" style="margin-top:8px">Ideas</div>
+        <div class="ql">
+          <button class="qbtn" onclick="setPrompt('A healthy high-protein meal: grilled chicken, sweet potato and broccoli, food photography, natural light')">
+            <span class="qi">🍗</span><div class="qt"><div class="qtt">Healthy meal visual</div><div class="qts">Food photography style</div></div><span class="qa">›</span>
+          </button>
+          <button class="qbtn" onclick="setPrompt('A motivational home gym setup, modern and minimal, warm lighting, fitness aesthetic')">
+            <span class="qi">🏋️</span><div class="qt"><div class="qtt">Gym setup inspo</div><div class="qts">Motivational fitness space</div></div><span class="qa">›</span>
+          </button>
+          <button class="qbtn" onclick="setPrompt('A clean weekly meal prep layout, 5 containers with balanced meals, top-down view, minimal style')">
+            <span class="qi">📦</span><div class="qt"><div class="qtt">Meal prep layout</div><div class="qts">Weekly planning visual</div></div><span class="qa">›</span>
+          </button>
+          <button class="qbtn" onclick="setPrompt('A modern smart home living room at night, warm lights on, cozy atmosphere, interior design')">
+            <span class="qi">🏠</span><div class="qt"><div class="qtt">Smart home vibes</div><div class="qts">Interior design inspo</div></div><span class="qa">›</span>
+          </button>
+>>>>>>> ec931570842916d24e0fc38106a5b9433412c439
+        </div>
+      </div></div>
+    </div>
+
+<<<<<<< HEAD
         <!-- SKILLS -->
         <div class="panel" id="p-skills">
           <div class="pscr"><div class="ppad">
@@ -408,10 +780,85 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--fg);font-
       </div><!-- /panels -->
       <div class="sbar"><div class="si"><svg width="11" height="11"><use href="#i-bolt"/></svg> ARIA v4</div><div class="si" id="sbMod">llama-3.3-70b</div><div class="si" style="margin-left:auto" id="sbUser">···</div></div>
     </div>
+=======
+    <!-- PROFILE -->
+    <div class="panel" id="p-prof">
+      <div class="scr"><div class="pin">
+        <div class="sec">Your profile</div>
+        <div class="kard" style="margin-bottom:14px">
+          <div class="prow"><div><div class="plbl">Name</div><div class="psub">ARIA uses this in every chat</div></div><input class="pinput" id="pName" placeholder="Your name"></div>
+          <div class="prow"><div><div class="plbl">Daily calories</div><div class="psub">Your calorie goal</div></div><input class="pinput" id="pCal" type="number" placeholder="2000"></div>
+          <div class="prow"><div><div class="plbl">Daily protein (g)</div><div class="psub">Your protein goal</div></div><input class="pinput" id="pPro" type="number" placeholder="150"></div>
+          <div class="prow"><div><div class="plbl">Weight (kg)</div><div class="psub">Current weight</div></div><input class="pinput" id="pWgt" type="number" placeholder="75"></div>
+          <div class="prow"><div><div class="plbl">Target weight (kg)</div><div class="psub">Your goal weight</div></div><input class="pinput" id="pTgt" type="number" placeholder="70"></div>
+          <div class="prow"><div><div class="plbl">Workouts / week</div><div class="psub">Training frequency</div></div><input class="pinput" id="pWrk" type="number" placeholder="4"></div>
+          <div class="prow" style="border:none"><div><div class="plbl">QA stack</div><div class="psub">Tools you use at work</div></div><input class="pinput" id="pQa" placeholder="Playwright, Jira"></div>
+        </div>
+        <div class="sec">Goals & notes</div>
+        <div class="kard" style="margin-bottom:14px">
+          <textarea class="gen-input" id="pGoal" rows="2" placeholder="Main goal right now (e.g. lose 5kg by summer, improve test coverage to 80%)"></textarea>
+          <textarea class="gen-input" id="pNotes" rows="2" placeholder="Any other things ARIA should know about you..." style="margin-top:8px"></textarea>
+        </div>
+        <button class="save-btn" onclick="saveProfile()">💾 Save profile</button>
+        <div id="saveMsg" style="font-size:11px;color:var(--g);text-align:center;margin-top:8px;min-height:16px"></div>
+      </div></div>
+    </div>
+
+    <!-- SETUP -->
+    <div class="panel" id="p-setup">
+      <div class="scr"><div class="pin">
+        <div class="sec">New in v2</div>
+        <div class="kard" style="margin-bottom:10px">
+          <div style="display:flex;flex-direction:column;gap:10px;font-size:12.5px">
+            <div>✅ <strong style="color:var(--white)">Memory</strong> — ARIA remembers your name, goals, and conversations</div>
+            <div>✅ <strong style="color:var(--white)">Image analysis</strong> — Send a photo, ARIA describes and answers questions</div>
+            <div>✅ <strong style="color:var(--white)">Image generation</strong> — Create images from text (Gemini 2.5 Flash)</div>
+            <div>✅ <strong style="color:var(--white)">Real voice</strong> — Orpheus TTS: expressive AI voice, not robot text-to-speech</div>
+            <div>✅ <strong style="color:var(--white)">Voice call mode</strong> — Hands-free conversation like a phone call</div>
+          </div>
+        </div>
+
+        <div class="sec">Database upgrade</div>
+        <div class="kard" style="margin-bottom:10px">
+          <div style="font-size:12px;color:var(--muted);line-height:1.7">
+            Go to <strong style="color:var(--white)">Supabase → SQL Editor</strong> and run the contents of <code style="color:var(--a)">supabase_setup.sql</code> included in the zip.<br><br>
+            This creates the new tables needed for memory and profile storage.
+          </div>
+        </div>
+
+        <div class="sec">New env variable</div>
+        <div class="kard" style="margin-bottom:10px">
+          <div style="font-size:12px;color:var(--muted);line-height:1.7">
+            In Render → Environment, add:<br><br>
+            <code style="color:var(--a)">GEMINI_API_KEY</code> = your key from <strong style="color:var(--white)">aistudio.google.com</strong><br><br>
+            Free at Google AI Studio — no credit card. Gives 500 image generations/day.
+          </div>
+        </div>
+
+        <div class="sec">Voice</div>
+        <div class="kard" style="margin-bottom:10px">
+          <div style="font-size:12px;color:var(--muted);line-height:1.7">
+            You must accept Orpheus TTS terms in the <strong style="color:var(--white)">Groq Playground</strong> before voice output works:<br><br>
+            <code style="color:var(--a)">console.groq.com/playground</code><br>
+            Search for <strong style="color:var(--white)">orpheus-v1-english</strong> and accept the terms.<br><br>
+            Optional: set <code style="color:var(--a)">ARIA_VOICE</code> in Render to change voice.<br>
+            Options: <code style="color:var(--a)">autumn · diana · hannah · austin · daniel · troy</code>
+          </div>
+        </div>
+
+        <div class="sec">Status</div>
+        <div class="kard" id="statusCard">
+          <div style="font-size:11px;color:var(--muted)">Loading...</div>
+        </div>
+      </div></div>
+    </div>
+
+>>>>>>> ec931570842916d24e0fc38106a5b9433412c439
   </div>
 </div>
 
 <script>
+<<<<<<< HEAD
 const B=location.origin;
 let JWT=localStorage.getItem('ariaJwt')||'',me={},isAdmin=false,chatHist=[],ws=null;
 let recMode=false,mRec=null,rChunks=[];
@@ -545,6 +992,329 @@ function ar(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,
 function onk(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}}
 const tl={chat:'chat.aria',skills:'skills.json',img:'image.gen',prof:'profile.ts',admin:'admin.panel',setup:'setup.md'};
 function gt(name){document.querySelectorAll('.abn').forEach(b=>b.classList.remove('on'));document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));document.getElementById(`ab-${name}`)?.classList.add('on');document.getElementById(`p-${name}`)?.classList.add('on');document.getElementById('tlabel').textContent=tl[name]||name;}
+=======
+const BASE = window.location.origin;
+let tok = localStorage.getItem('ariaToken') || '';
+let hist = [], ws = null, recording = false, mediaRec = null, chunks = [];
+let callActive = false, callMicActive = false, callAudio = null;
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+function unlock(){ tok = document.getElementById('linp').value; localStorage.setItem('ariaToken',tok); boot(); }
+function skipLock(){ tok=''; boot(); }
+window.addEventListener('DOMContentLoaded',()=>{ if(tok) boot(); });
+
+function boot(){
+  document.getElementById('lock').classList.add('h');
+  document.getElementById('app').style.display='flex';
+  document.getElementById('gt').textContent = now();
+  connectWS(); checkStatus(); loadProfile(); loadMemCount();
+}
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+function connectWS(){
+  const url = BASE.replace('https://','wss://').replace('http://','ws://') + '/ws';
+  try{
+    ws = new WebSocket(url);
+    ws.onopen = ()=>{ if(tok) ws.send(JSON.stringify({token:tok})); };
+    ws.onmessage = onMsg;
+    ws.onerror = ()=>{ ws=null; };
+    ws.onclose = ()=>{ ws=null; setTimeout(connectWS,4000); };
+  }catch{ ws=null; }
+}
+
+let sBbl=null, sText='', sMod='general';
+function onMsg(e){
+  const d = JSON.parse(e.data);
+  if(d.type==='auth_fail'){ document.getElementById('lerr').textContent='Wrong password'; boot(); return; }
+  if(d.type==='auth_ok') return;
+  sMod = d.module||sMod;
+  if(!sBbl){ showTyp(false); sBbl=mkBbl(sMod); sText=''; }
+  sText += d.token||'';
+  sBbl.innerHTML = fmt(sText)+(d.done?'':'<span style="opacity:.4">▋</span>');
+  if(d.done){
+    hist.push({role:'assistant',content:sText});
+    sBbl=null; setMod(sMod); scrollBot();
+    if(callActive) speakOrpheus(sText);
+  }
+  scrollBot();
+}
+
+// ── Send ──────────────────────────────────────────────────────────────────────
+async function sendMsg(){
+  const el=document.getElementById('mi');
+  const t=el.value.trim(); if(!t) return;
+  el.value=''; ar(el); await doSend(t);
+}
+function qa(t){ sw('chat'); const el=document.getElementById('mi'); el.value=t; ar(el); el.focus(); if(!t.endsWith(' ')) doSend(t); }
+async function doSend(txt){
+  addMsg('user',txt,'you'); hist.push({role:'user',content:txt}); showTyp(true);
+  if(ws&&ws.readyState===1){ ws.send(JSON.stringify({message:txt})); return; }
+  try{
+    const r=await fetch(`${BASE}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:txt,history:hist.slice(-12),module:'auto',token:tok})});
+    const d=await r.json(); showTyp(false);
+    if(d.error){addMsg('ai',`Error: ${d.error}`,'error');return;}
+    addMsg('ai',d.reply,d.module); hist.push({role:'assistant',content:d.reply});
+    setMod(d.module);
+    if(callActive) speakOrpheus(d.reply);
+  }catch(e){ showTyp(false); addMsg('ai',"Can't reach ARIA. Check connection.",'error'); }
+}
+
+// ── Image send (vision analysis) ──────────────────────────────────────────────
+async function sendImage(input){
+  const file = input.files[0]; if(!file) return;
+  const prompt = document.getElementById('mi').value.trim() || "What's in this image? Describe it in detail.";
+  document.getElementById('mi').value='';
+
+  // Show preview in chat
+  const reader = new FileReader();
+  reader.onload = async e => {
+    addMsgWithImg('user', prompt, e.target.result);
+    showTyp(true);
+    const fd = new FormData(); fd.append('file',file); 
+    try{
+      const r = await fetch(`${BASE}/vision/analyze?prompt=${encodeURIComponent(prompt)}`,{method:'POST',body:fd});
+      const d = await r.json(); showTyp(false);
+      if(d.error){addMsg('ai',`Vision error: ${d.error}`,'error');return;}
+      addMsg('ai',d.analysis,'vision'); setMod('vision');
+    }catch{ showTyp(false); addMsg('ai',"Image analysis failed.",'error'); }
+  };
+  reader.readAsDataURL(file);
+  input.value='';
+}
+
+// ── Image generation ──────────────────────────────────────────────────────────
+async function generateImage(){
+  const prompt = document.getElementById('genPrompt').value.trim();
+  if(!prompt){ alert('Enter a description first.'); return; }
+  const btn = document.getElementById('genBtn');
+  const img  = document.getElementById('genResult');
+  btn.disabled=true; btn.textContent='✨ Generating...';
+  img.style.display='none';
+  try{
+    const r = await fetch(`${BASE}/image/generate`,{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({prompt,token:tok})});
+    const d = await r.json();
+    if(d.error){alert(`Error: ${d.error}`);return;}
+    img.src = d.image_url; img.style.display='block';
+  }catch(e){ alert('Image generation failed. Check GEMINI_API_KEY in Render.'); }
+  finally{ btn.disabled=false; btn.textContent='✨ Generate image'; }
+}
+
+async function analyzeImage(input){
+  const file = input.files[0]; if(!file) return;
+  sw('chat');
+  await sendImage({files:[file]});
+  input.value='';
+}
+
+function setPrompt(t){ document.getElementById('genPrompt').value=t; }
+
+// ── Voice (STT) ───────────────────────────────────────────────────────────────
+async function toggleVoice(){
+  const btn=document.getElementById('vbtn');
+  if(!recording){
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      mediaRec=new MediaRecorder(stream,{mimeType:'audio/webm'});
+      chunks=[]; mediaRec.ondataavailable=e=>chunks.push(e.data);
+      mediaRec.onstop=async()=>{
+        const blob=new Blob(chunks,{type:'audio/webm'});
+        const fd=new FormData(); fd.append('file',blob,'voice.webm');
+        try{
+          const r=await fetch(`${BASE}/voice/transcribe`,{method:'POST',body:fd});
+          const d=await r.json(); if(d.text) await doSend(d.text);
+        }catch{ addMsg('ai','Voice error. Check connection.','error'); }
+        stream.getTracks().forEach(t=>t.stop());
+      };
+      mediaRec.start(); recording=true;
+      btn.textContent='⏹️'; btn.classList.add('rec');
+    }catch{ alert('Allow microphone in Safari settings.'); }
+  }else{
+    mediaRec.stop(); recording=false;
+    btn.textContent='🎙️'; btn.classList.remove('rec');
+  }
+}
+
+// ── Orpheus TTS (real AI voice) ───────────────────────────────────────────────
+async function speakOrpheus(text){
+  try{
+    const r=await fetch(`${BASE}/voice/speak`,{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({text:text.replace(/<[^>]+>/g,'').substring(0,800)})});
+    if(!r.ok) return;
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    if(callAudio){ callAudio.pause(); URL.revokeObjectURL(callAudio.src); }
+    callAudio=new Audio(url);
+    document.getElementById('callStatus').textContent='ARIA SPEAKING...';
+    document.getElementById('callWave').classList.add('speaking');
+    callAudio.onended=()=>{
+      document.getElementById('callStatus').textContent='LISTENING...';
+      document.getElementById('callWave').classList.remove('speaking');
+      URL.revokeObjectURL(url);
+      if(callActive&&callMicActive) startCallListening();
+    };
+    callAudio.play();
+  }catch(e){ console.log('TTS error',e); }
+}
+
+// ── Voice call mode ───────────────────────────────────────────────────────────
+let callStream=null, callRec=null, callChunks=[];
+
+function startCall(){
+  document.getElementById('callOverlay').classList.add('active');
+  callActive=true; callMicActive=true;
+  document.getElementById('callStatus').textContent='TAP MIC TO START';
+}
+
+function endCall(){
+  callActive=false; callMicActive=false;
+  document.getElementById('callOverlay').classList.remove('active');
+  if(callStream) callStream.getTracks().forEach(t=>t.stop());
+  if(callAudio){ callAudio.pause(); }
+  if(callRec&&callRec.state==='recording') callRec.stop();
+}
+
+function toggleCallMic(){
+  const btn=document.getElementById('callMicBtn');
+  if(!callMicActive){
+    callMicActive=true; btn.classList.remove('muted'); btn.textContent='🎙️';
+    startCallListening();
+  }else{
+    callMicActive=false; btn.classList.add('muted'); btn.textContent='🔇';
+    if(callRec&&callRec.state==='recording') callRec.stop();
+  }
+}
+
+async function startCallListening(){
+  if(!callActive||!callMicActive) return;
+  try{
+    callStream=await navigator.mediaDevices.getUserMedia({audio:true});
+    callRec=new MediaRecorder(callStream,{mimeType:'audio/webm'});
+    callChunks=[];
+    callRec.ondataavailable=e=>callChunks.push(e.data);
+    callRec.onstop=async()=>{
+      if(!callActive) return;
+      const blob=new Blob(callChunks,{type:'audio/webm'});
+      const fd=new FormData(); fd.append('file',blob,'call.webm');
+      document.getElementById('callStatus').textContent='THINKING...';
+      try{
+        const r=await fetch(`${BASE}/voice/transcribe`,{method:'POST',body:fd});
+        const d=await r.json();
+        if(d.text&&d.text.trim().length>1){
+          addMsg('user',d.text,'you'); hist.push({role:'user',content:d.text});
+          showTyp(true); sw('chat');
+          await doSend(d.text);
+        }else{ if(callActive&&callMicActive) startCallListening(); }
+      }catch{ document.getElementById('callStatus').textContent='ERROR — RETRY'; }
+      callStream.getTracks().forEach(t=>t.stop());
+    };
+    callRec.start();
+    document.getElementById('callStatus').textContent='LISTENING...';
+    setTimeout(()=>{ if(callRec&&callRec.state==='recording') callRec.stop(); },8000);
+  }catch{ alert('Allow microphone for voice call.'); }
+}
+
+// ── Profile ───────────────────────────────────────────────────────────────────
+async function loadProfile(){
+  try{
+    const r=await fetch(`${BASE}/profile?token=${tok}`);
+    const d=await r.json();
+    if(d.name)              document.getElementById('pName').value=d.name;
+    if(d.daily_cal_goal)    document.getElementById('pCal').value=d.daily_cal_goal;
+    if(d.daily_protein_g)   document.getElementById('pPro').value=d.daily_protein_g;
+    if(d.weight_kg)         document.getElementById('pWgt').value=d.weight_kg;
+    if(d.target_weight_kg)  document.getElementById('pTgt').value=d.target_weight_kg;
+    if(d.workouts_per_week) document.getElementById('pWrk').value=d.workouts_per_week;
+    if(d.qa_stack)          document.getElementById('pQa').value=d.qa_stack;
+    if(d.latest_goal)       document.getElementById('pGoal').value=d.latest_goal;
+    if(d.notes)             document.getElementById('pNotes').value=d.notes;
+  }catch{}
+}
+
+async function saveProfile(){
+  const body={
+    token:tok,
+    name:document.getElementById('pName').value,
+    daily_cal_goal:parseInt(document.getElementById('pCal').value)||null,
+    daily_protein_g:parseInt(document.getElementById('pPro').value)||null,
+    weight_kg:parseFloat(document.getElementById('pWgt').value)||null,
+    target_weight_kg:parseFloat(document.getElementById('pTgt').value)||null,
+    workouts_per_week:parseInt(document.getElementById('pWrk').value)||null,
+    qa_stack:document.getElementById('pQa').value,
+    latest_goal:document.getElementById('pGoal').value,
+    notes:document.getElementById('pNotes').value,
+  };
+  try{
+    await fetch(`${BASE}/profile`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    document.getElementById('saveMsg').textContent='✅ Profile saved!';
+    setTimeout(()=>document.getElementById('saveMsg').textContent='',3000);
+  }catch{ document.getElementById('saveMsg').textContent='❌ Save failed'; }
+}
+
+async function loadMemCount(){
+  try{
+    const r=await fetch(`${BASE}/status`);
+    const d=await r.json();
+    if(d.db_ready) document.getElementById('kMem').textContent='✓';
+  }catch{}
+}
+
+// ── Status ────────────────────────────────────────────────────────────────────
+async function checkStatus(){
+  try{
+    const r=await fetch(`${BASE}/status`);
+    const d=await r.json();
+    document.getElementById('led').style.background=d.groq_ready?'var(--g)':'var(--o)';
+    document.getElementById('statusCard').innerHTML=`
+      <div style="display:flex;flex-direction:column;gap:7px;font-size:11.5px">
+        <div>${d.groq_ready?'✅':'❌'} Groq AI — ${d.chat_model}</div>
+        <div>${d.groq_ready?'✅':'❌'} Vision — ${d.vision_model}</div>
+        <div>${d.groq_ready?'✅':'❌'} Voice TTS — Orpheus (${d.tts_voice})</div>
+        <div>${d.gemini_ready?'✅':'⚠️'} Image gen — ${d.gemini_ready?'Gemini 2.5 Flash':'Add GEMINI_API_KEY'}</div>
+        <div>${d.db_ready?'✅':'❌'} Memory — ${d.db_ready?'Supabase connected':'Not connected'}</div>
+      </div>`;
+  }catch{
+    document.getElementById('led').style.background='var(--r)';
+    document.getElementById('statusCard').innerHTML='<div style="font-size:11.5px;color:var(--r)">❌ Cannot reach ARIA</div>';
+  }
+}
+
+// ── DOM helpers ───────────────────────────────────────────────────────────────
+function addMsg(role,txt,mod){
+  const el=document.createElement('div'); el.className=`msg ${role} fi`;
+  el.innerHTML=`<div class="av">${role==='user'?'ME':'AI'}</div>
+    <div class="mb"><div class="mm">${role==='user'?'YOU':'ARIA · '+(mod||'').toUpperCase()}</div>
+    <div class="bbl">${fmt(txt)}</div><div class="mt">${now()}</div></div>`;
+  document.getElementById('cscr').appendChild(el); scrollBot();
+}
+function addMsgWithImg(role,txt,imgSrc){
+  const el=document.createElement('div'); el.className=`msg ${role} fi`;
+  el.innerHTML=`<div class="av">ME</div>
+    <div class="mb"><div class="mm">YOU</div>
+    <div class="bbl">${fmt(txt)}<img src="${imgSrc}" style="max-width:100%;border-radius:8px;margin-top:8px;display:block"></div>
+    <div class="mt">${now()}</div></div>`;
+  document.getElementById('cscr').appendChild(el); scrollBot();
+}
+function mkBbl(mod){
+  const sc=document.getElementById('cscr');
+  const el=document.createElement('div'); el.className='msg ai fi';
+  const b=document.createElement('div'); b.className='bbl';
+  el.innerHTML=`<div class="av">AI</div><div class="mb"><div class="mm">ARIA · ${mod.toUpperCase()}</div></div>`;
+  el.querySelector('.mb').appendChild(b); sc.appendChild(el); scrollBot();
+  return b;
+}
+function showTyp(show){ document.getElementById('typwrap').style.display=show?'block':'none'; if(show)scrollBot(); }
+function scrollBot(){ const s=document.getElementById('cscr'); s.scrollTop=s.scrollHeight; }
+function fmt(t){ return t.replace(/```(\w+)?\n?([\s\S]*?)```/g,'<pre><code>$2</code></pre>').replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>'); }
+function setMod(m){ const c=document.getElementById('mchip'); c.textContent=(m||'general').toUpperCase(); c.className='mchip '+(m||'general'); }
+function now(){ return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+function sw(name){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); document.getElementById(`t-${name}`).classList.add('active'); document.getElementById(`p-${name}`).classList.add('active'); }
+function ar(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,90)+'px'; }
+function hk(e){ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();} }
+>>>>>>> ec931570842916d24e0fc38106a5b9433412c439
 </script>
 </body>
 </html>
