@@ -1,337 +1,528 @@
 """
-ARIA Cloud Brain
-================
-FastAPI server designed for Render.com free tier.
-Uses Groq API (free) for AI — no GPU needed, runs 24/7 in the cloud.
-Data persisted in Supabase (free tier).
-
-Deploy: push to GitHub → connect to Render → done.
+ARIA v4 — Definitive fixes
+===========================
+Image gen : gemini-2.0-flash-exp-image-generation via generateContent
+            Correct payload + robust response parsing
+Voice     : /voice/conversation — Whisper → LLM → Orpheus in ONE request
+            Returns base64 WAV + transcript + reply together
+            Browser SpeechSynthesis fallback if Orpheus terms not yet accepted
 """
 
-import os, json, asyncio, tempfile
+import os, json, asyncio, base64, re
 from datetime import datetime
 from pathlib import Path
 from contextlib import asynccontextmanager
 
-import httpx
-import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Request
+import httpx, uvicorn
+from fastapi import (FastAPI, WebSocket, WebSocketDisconnect,
+                     UploadFile, File, Header, Depends, HTTPException)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── Config ────────────────────────────────────────────────────────────────────
-GROQ_API_KEY  = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL    = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")  # Free tier
-GROQ_WHISPER  = "whisper-large-v3-turbo"                             # Free STT
-GROQ_BASE     = "https://api.groq.com/openai/v1"
+GROQ_KEY    = os.getenv("GROQ_API_KEY", "")
+GROQ_CHAT   = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_VISION = "meta-llama/llama-4-scout-17b-16e-instruct"
+GROQ_STT    = "whisper-large-v3-turbo"
+GROQ_TTS    = "canopylabs/orpheus-v1-english"
+GROQ_VOICE  = os.getenv("ARIA_VOICE", "dan")   # autumn|diana|hannah|austin|daniel|troy|dan
+GROQ_BASE   = "https://api.groq.com/openai/v1"
 
-HA_URL        = os.getenv("HA_URL",   "")
-HA_TOKEN      = os.getenv("HA_TOKEN", "")
+GEMINI_KEY  = os.getenv("GEMINI_API_KEY", "")
+# ✅ Confirmed working free-tier model + endpoint
+GEMINI_IMG  = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent"
 
-SUPABASE_URL  = os.getenv("SUPABASE_URL",  "")
-SUPABASE_KEY  = os.getenv("SUPABASE_ANON_KEY", "")
+SB_URL  = os.getenv("SUPABASE_URL", "")
+SB_ANON = os.getenv("SUPABASE_ANON_KEY", "")
+SB_SVC  = os.getenv("SUPABASE_SERVICE_KEY", "")
+PORT    = int(os.getenv("PORT", 8000))
 
-APP_PASSWORD  = os.getenv("APP_PASSWORD", "")   # Simple auth to protect your AI
-PORT          = int(os.getenv("PORT", 8000))
-
-# ── Startup / keep-alive ──────────────────────────────────────────────────────
+# ── Lifespan / keep-alive ─────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Background keep-alive ping (so Render free tier stays awake)
-    async def keep_alive():
-        app_url = os.getenv("RENDER_EXTERNAL_URL", "")
-        if not app_url:
-            return
+    async def _ping():
+        url = os.getenv("RENDER_EXTERNAL_URL", "")
+        if not url: return
         while True:
-            await asyncio.sleep(240)  # Ping every 4 minutes
+            await asyncio.sleep(240)
             try:
                 async with httpx.AsyncClient() as c:
-                    await c.get(f"{app_url}/healthz", timeout=5)
-            except:
-                pass
-    asyncio.create_task(keep_alive())
+                    await c.get(f"{url}/healthz", timeout=5)
+            except: pass
+    asyncio.create_task(_ping())
     yield
 
-app = FastAPI(title="ARIA Cloud", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="ARIA v4", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# Serve static files and frontend
-static_dir = Path(__file__).parent.parent / "static"
-if static_dir.exists():
-    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+_static = Path(__file__).parent.parent / "static"
+if _static.exists():
+    app.mount("/static", StaticFiles(directory=str(_static)), name="static")
 
-# ── Module routing ────────────────────────────────────────────────────────────
-MODULES = {
-    "work":     ["test","bug","qa","regression","playwright","jira","ticket","defect","sprint","deploy","code","review","selenium","coverage"],
-    "home":     ["light","device","thermostat","temperature","lock","door","camera","home","turn on","turn off","scene","fan","switch"],
-    "health":   ["workout","exercise","steps","sleep","weight","heart","fitness","run","gym","calories burned","training","stretch"],
-    "food":     ["eat","food","meal","recipe","calories","nutrition","protein","carb","breakfast","lunch","dinner","snack","diet","macro","grocery"],
-    "planning": ["remind","schedule","calendar","todo","task","meeting","appointment","plan","agenda","tomorrow","today","week","deadline"],
+# ── DB / auth helpers ─────────────────────────────────────────────────────────
+def _gh():
+    return {"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"}
+
+def _sbh(jwt: str, svc: bool = False):
+    k = SB_SVC if svc else SB_ANON
+    return {"apikey": k, "Authorization": f"Bearer {jwt if not svc else k}",
+            "Content-Type": "application/json", "Prefer": "return=representation"}
+
+async def _get(table, params, jwt):
+    if not SB_URL: return []
+    async with httpx.AsyncClient(timeout=8) as c:
+        r = await c.get(f"{SB_URL}/rest/v1/{table}", headers=_sbh(jwt), params=params)
+        d = r.json(); return d if isinstance(d, list) else []
+
+async def _post(table, data, jwt):
+    if not SB_URL: return {}
+    async with httpx.AsyncClient(timeout=8) as c:
+        r = await c.post(f"{SB_URL}/rest/v1/{table}", headers=_sbh(jwt), json=data)
+        d = r.json(); return d[0] if isinstance(d, list) and d else {}
+
+async def _patch(table, data, match, jwt):
+    if not SB_URL: return
+    async with httpx.AsyncClient(timeout=8) as c:
+        await c.patch(f"{SB_URL}/rest/v1/{table}", headers=_sbh(jwt),
+                      params={k: f"eq.{v}" for k, v in match.items()}, json=data)
+
+async def _del(table, match, jwt):
+    if not SB_URL: return
+    async with httpx.AsyncClient(timeout=8) as c:
+        await c.delete(f"{SB_URL}/rest/v1/{table}", headers=_sbh(jwt),
+                       params={k: f"eq.{v}" for k, v in match.items()})
+
+async def get_user(authorization: str = Header(default="")) -> dict:
+    if not authorization.startswith("Bearer "): return {}
+    jwt = authorization[7:]
+    if not SB_URL: return {"id": "local", "jwt": jwt}
+    async with httpx.AsyncClient(timeout=5) as c:
+        r = await c.get(f"{SB_URL}/auth/v1/user",
+                        headers={"apikey": SB_ANON, "Authorization": f"Bearer {jwt}"})
+        if r.status_code != 200: return {}
+        u = r.json(); u["jwt"] = jwt; return u
+
+# ── Module routing + system prompt ───────────────────────────────────────────
+_MODS = {
+    "work":     ["test","bug","qa","regression","playwright","jira","ticket","sprint","code","review","selenium","defect"],
+    "home":     ["light","device","thermostat","temperature","lock","door","turn on","turn off","fan"],
+    "health":   ["workout","exercise","sleep","weight","fitness","run","gym","calories burned","steps"],
+    "food":     ["eat","food","meal","recipe","calories","nutrition","protein","breakfast","lunch","dinner","snack"],
+    "planning": ["remind","schedule","calendar","todo","task","meeting","plan","agenda","tomorrow"],
 }
 
-def route(msg: str) -> str:
-    lower = msg.lower()
-    scores = {m: sum(1 for kw in kws if kw in lower) for m, kws in MODULES.items()}
-    best = max(scores, key=scores.get)
-    return best if scores[best] > 0 else "general"
+def _route(msg):
+    lo = msg.lower()
+    s = {m: sum(1 for kw in kws if kw in lo) for m, kws in _MODS.items()}
+    b = max(s, key=s.get); return b if s[b] > 0 else "general"
 
-# ── System prompts ────────────────────────────────────────────────────────────
-def get_system(module: str) -> str:
-    base = f"Today is {datetime.now().strftime('%A, %B %d, %Y')}. "
-    prompts = {
-        "work":     base + "You are ARIA, a QA engineering assistant. Help with Playwright/Selenium tests, bug triage, test plans, coverage analysis, and sprint planning. Be technical, precise, use code examples.",
-        "home":     base + "You are ARIA, a smart home assistant. Control devices via Home Assistant. For control actions output JSON: {\"ha_action\":\"turn_on\"|\"turn_off\"|\"set_temperature\", \"entity\":\"entity_id\", \"value\":optional}. Then confirm in plain English.",
-        "health":   base + "You are ARIA, a personal health and fitness coach. Help with workouts, sleep optimisation, habit building, and progress tracking. Be encouraging, data-driven, and practical.",
-        "food":     base + "You are ARIA, a nutrition coach and meal planner. Help with meal ideas, macro tracking, recipes, grocery lists, and dietary goals. Be practical and specific.",
-        "planning": base + "You are ARIA, a personal productivity assistant. Help with scheduling, tasks, prioritisation, and daily planning. Be organised and proactive.",
-        "general":  base + "You are ARIA, a personal AI assistant. You help with QA work, smart home, health, nutrition, and daily planning. Be helpful, direct, and concise.",
+def _skill_match(msg, skills):
+    lo = msg.lower()
+    return [s for s in skills if s.get("is_active") and
+            any(w.lower() in lo for w in (s.get("trigger_words") or []))]
+
+def _sys(module, profile, skills, voice=False):
+    today = datetime.now().strftime("%A, %B %d, %Y")
+    name  = profile.get("display_name", "")
+    facts = [x for x in [
+        f"Name: {name}" if name else None,
+        f"Weight: {profile['weight_kg']}kg" if profile.get("weight_kg") else None,
+        f"Daily calorie goal: {profile['daily_cal_goal']} kcal" if profile.get("daily_cal_goal") else None,
+        f"Daily protein goal: {profile['daily_protein_g']}g" if profile.get("daily_protein_g") else None,
+        f"Current goal: {profile['latest_goal']}" if profile.get("latest_goal") else None,
+        f"QA stack: {profile['qa_stack']}" if profile.get("qa_stack") else None,
+        f"Notes: {profile['notes']}" if profile.get("notes") else None,
+    ] if x]
+    mem = ("\n\nUser profile:\n" + "\n".join(f"- {f}" for f in facts)) if facts else ""
+    sk  = ("\n\nActive skills:\n" + "\n".join(f"[{s['name']}]: {s['system_prompt']}" for s in skills)) if skills else ""
+    vn  = "\n\nVOICE MODE: Keep reply to 2-3 sentences max. No markdown, no lists, no code blocks. Speak naturally." if voice else ""
+    base = f"Today is {today}. {'The user is '+name+'. ' if name else ''}You are ARIA, a personal AI assistant.{mem}{sk}{vn}\n\n"
+    ex = {
+        "work":     "You are a QA engineering expert. Be technical and precise.",
+        "home":     'For HA actions output JSON: {"ha_action":"turn_on"|"turn_off","entity":"id"}',
+        "health":   "You are a health coach. Be encouraging and data-driven.",
+        "food":     "You are a nutrition coach. Be practical with meals and macros.",
+        "planning": "You are a productivity assistant. Help with tasks and scheduling.",
+        "general":  "Be helpful, direct, and concise.",
     }
-    return prompts.get(module, prompts["general"])
+    return base + ex.get(module, ex["general"])
 
-# ── Auth middleware (optional password protection) ────────────────────────────
-async def check_auth(request: Request) -> bool:
-    if not APP_PASSWORD:
-        return True
-    token = request.headers.get("X-Auth-Token") or request.query_params.get("token")
-    return token == APP_PASSWORD
+async def _ctx(uid, jwt, msg):
+    profile = await _get("profiles", {"id": f"eq.{uid}"}, jwt)
+    profile = profile[0] if profile else {}
+    history = await _get("conversations",
+                         {"user_id": f"eq.{uid}", "order": "created_at.desc", "limit": "16"}, jwt)
+    history = list(reversed(history))
+    skills  = await _get("skills", {"is_active": "eq.true"}, jwt)
+    return profile, history, _skill_match(msg, skills)
 
-# ── Groq chat ─────────────────────────────────────────────────────────────────
-async def groq_chat(messages: list, stream: bool = False):
-    if not GROQ_API_KEY:
-        raise ValueError("GROQ_API_KEY not set. Add it in Render environment variables.")
+def _build_msgs(system, db_hist, sess, msg):
+    out = [{"role": "system", "content": system}]
+    for row in db_hist[-8:]:
+        out += [{"role":"user","content":row.get("user_message","")},
+                {"role":"assistant","content":row.get("ai_reply","")}]
+    out += sess[-8:]
+    out.append({"role":"user","content":msg})
+    return out
 
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model":    GROQ_MODEL,
-        "messages": messages,
-        "stream":   stream,
-        "max_tokens": 1024,
-        "temperature": 0.7,
-    }
-    return headers, payload
+# ── Auth endpoints ────────────────────────────────────────────────────────────
+class _AR(BaseModel):
+    email: str; password: str; display_name: str = ""
 
-# ── REST chat endpoint ────────────────────────────────────────────────────────
-class ChatRequest(BaseModel):
-    message: str
-    history: list = []
-    module: str = "auto"
-    token: str = ""
+@app.post("/auth/signup")
+async def signup(req: _AR):
+    async with httpx.AsyncClient(timeout=10) as c:
+        r = await c.post(f"{SB_URL}/auth/v1/signup",
+                         headers={"apikey": SB_ANON, "Content-Type": "application/json"},
+                         json={"email": req.email, "password": req.password,
+                               "data": {"display_name": req.display_name or req.email.split("@")[0]}})
+    d = r.json()
+    if "error" in d: return JSONResponse({"error": d["error"]}, status_code=400)
+    return {"message": "Check your email to confirm, then sign in."}
+
+@app.post("/auth/login")
+async def login(req: _AR):
+    async with httpx.AsyncClient(timeout=10) as c:
+        r = await c.post(f"{SB_URL}/auth/v1/token?grant_type=password",
+                         headers={"apikey": SB_ANON, "Content-Type": "application/json"},
+                         json={"email": req.email, "password": req.password})
+    d = r.json()
+    if "error" in d: return JSONResponse({"error": d.get("error_description", d["error"])}, status_code=401)
+    return {"access_token": d["access_token"], "user": d.get("user", {})}
+
+@app.post("/auth/logout")
+async def logout(user: dict = Depends(get_user)):
+    if user and SB_URL:
+        async with httpx.AsyncClient(timeout=5) as c:
+            await c.post(f"{SB_URL}/auth/v1/logout",
+                         headers={"apikey": SB_ANON, "Authorization": f"Bearer {user.get('jwt','')}"})
+    return {"ok": True}
+
+# ── Profile ───────────────────────────────────────────────────────────────────
+@app.get("/profile")
+async def get_profile(user: dict = Depends(get_user)):
+    if not user: raise HTTPException(401)
+    rows = await _get("profiles", {"id": f"eq.{user['id']}"}, user["jwt"])
+    return rows[0] if rows else {}
+
+@app.patch("/profile")
+async def update_profile(body: dict, user: dict = Depends(get_user)):
+    if not user: raise HTTPException(401)
+    body.pop("id", None); body.pop("role", None)
+    body["updated_at"] = datetime.now().isoformat()
+    await _patch("profiles", body, {"id": user["id"]}, user["jwt"])
+    return {"status": "saved"}
+
+# ── Skills ────────────────────────────────────────────────────────────────────
+@app.get("/skills")
+async def list_skills(user: dict = Depends(get_user)):
+    if not user: raise HTTPException(401)
+    own  = await _get("skills", {"owner_id": f"eq.{user['id']}"}, user["jwt"])
+    glob = await _get("skills", {"is_global": "eq.true"}, user["jwt"])
+    seen = set(); out = []
+    for s in own + glob:
+        if s["id"] not in seen: seen.add(s["id"]); out.append(s)
+    return out
+
+@app.post("/skills")
+async def create_skill(body: dict, user: dict = Depends(get_user)):
+    if not user: raise HTTPException(401)
+    if body.get("is_global"):
+        p = await get_profile(user)
+        if p.get("role") != "admin": body["is_global"] = False
+    body["owner_id"] = user["id"]
+    return await _post("skills", body, user["jwt"])
+
+@app.patch("/skills/{sid}")
+async def update_skill(sid: int, body: dict, user: dict = Depends(get_user)):
+    if not user: raise HTTPException(401)
+    body.pop("owner_id", None)
+    await _patch("skills", body, {"id": sid, "owner_id": user["id"]}, user["jwt"])
+    return {"status": "updated"}
+
+@app.delete("/skills/{sid}")
+async def delete_skill(sid: int, user: dict = Depends(get_user)):
+    if not user: raise HTTPException(401)
+    await _del("skills", {"id": sid, "owner_id": user["id"]}, user["jwt"])
+    return {"status": "deleted"}
+
+# ── Chat REST ─────────────────────────────────────────────────────────────────
+class _CR(BaseModel):
+    message: str; history: list = []; module: str = "auto"
 
 @app.post("/chat")
-async def chat(req: ChatRequest):
-    if APP_PASSWORD and req.token != APP_PASSWORD:
-        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+async def chat(req: _CR, user: dict = Depends(get_user)):
+    if not user: raise HTTPException(401)
+    module = _route(req.message) if req.module == "auto" else req.module
+    profile, db_hist, skills = await _ctx(user["id"], user["jwt"], req.message)
+    msgs = _build_msgs(_sys(module, profile, skills), db_hist, req.history, req.message)
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.post(f"{GROQ_BASE}/chat/completions", headers=_gh(),
+                         json={"model": GROQ_CHAT, "messages": msgs, "max_tokens": 1024})
+    d = r.json()
+    if "error" in d: return JSONResponse({"error": d["error"]["message"]}, status_code=500)
+    reply = d["choices"][0]["message"]["content"]
+    asyncio.create_task(_post("conversations",
+        {"user_id": user["id"], "user_message": req.message, "ai_reply": reply, "module": module},
+        user["jwt"]))
+    return {"reply": reply, "module": module, "skills_used": [s["name"] for s in skills]}
 
-    module = req.module if req.module != "auto" else route(req.message)
-    system = get_system(module)
-
-    messages = [{"role": "system", "content": system}]
-    for t in req.history[-12:]:
-        messages.append({"role": t["role"], "content": t["content"]})
-    messages.append({"role": "user", "content": req.message})
-
-    headers, payload = await groq_chat(messages, stream=False)
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.post(f"{GROQ_BASE}/chat/completions", headers=headers, json=payload)
-        data = r.json()
-
-    if "error" in data:
-        return JSONResponse({"error": data["error"]["message"]}, status_code=500)
-
-    reply = data["choices"][0]["message"]["content"]
-
-    if module == "home":
-        await _execute_ha(reply)
-
-    # Persist to Supabase
-    asyncio.create_task(_persist_message(req.message, reply, module))
-
-    return {"reply": reply, "module": module, "timestamp": datetime.now().isoformat()}
-
-# ── WebSocket streaming ───────────────────────────────────────────────────────
+# ── Chat WebSocket ─────────────────────────────────────────────────────────────
 @app.websocket("/ws")
 async def ws_chat(ws: WebSocket):
     await ws.accept()
-    history = []
-    authed = not APP_PASSWORD
-
+    user = {}; sess = []
     try:
         while True:
-            raw = await ws.receive_text()
+            raw  = await ws.receive_text()
             data = json.loads(raw)
-
-            # Auth handshake
-            if not authed:
-                if data.get("token") == APP_PASSWORD:
-                    authed = True
+            if data.get("type") == "auth":
+                jwt = data.get("jwt", "")
+                async with httpx.AsyncClient(timeout=5) as c:
+                    r = await c.get(f"{SB_URL}/auth/v1/user",
+                                    headers={"apikey": SB_ANON, "Authorization": f"Bearer {jwt}"})
+                if r.status_code == 200:
+                    user = r.json(); user["jwt"] = jwt
                     await ws.send_text(json.dumps({"type": "auth_ok"}))
                 else:
                     await ws.send_text(json.dumps({"type": "auth_fail"}))
                 continue
-
+            if not user: continue
             msg = data.get("message", "")
-            if not msg:
-                continue
-
-            module = route(msg)
-            system = get_system(module)
-
-            messages = [{"role": "system", "content": system}]
-            messages += history[-12:]
-            messages.append({"role": "user", "content": msg})
-
-            headers, payload = await groq_chat(messages, stream=True)
-
+            if not msg: continue
+            module = _route(msg)
+            profile, db_hist, skills = await _ctx(user["id"], user["jwt"], msg)
+            msgs = _build_msgs(_sys(module, profile, skills), db_hist, sess, msg)
             full = ""
-            async with httpx.AsyncClient(timeout=60) as client:
-                async with client.stream("POST", f"{GROQ_BASE}/chat/completions",
-                                         headers=headers, json=payload) as resp:
+            async with httpx.AsyncClient(timeout=60) as c:
+                async with c.stream("POST", f"{GROQ_BASE}/chat/completions", headers=_gh(),
+                                    json={"model": GROQ_CHAT, "messages": msgs,
+                                          "stream": True, "max_tokens": 1024}) as resp:
                     async for line in resp.aiter_lines():
-                        if not line.startswith("data: "):
-                            continue
+                        if not line.startswith("data: "): continue
                         chunk = line[6:]
                         if chunk == "[DONE]":
-                            await ws.send_text(json.dumps({"done": True, "module": module}))
+                            await ws.send_text(json.dumps(
+                                {"done": True, "module": module,
+                                 "skills": [s["name"] for s in skills]}))
                             break
                         try:
-                            d = json.loads(chunk)
-                            token = d["choices"][0].get("delta", {}).get("content", "")
-                            if token:
-                                full += token
-                                await ws.send_text(json.dumps({"token": token, "module": module, "done": False}))
-                        except:
-                            pass
+                            tok = json.loads(chunk)["choices"][0].get("delta",{}).get("content","")
+                            if tok:
+                                full += tok
+                                await ws.send_text(json.dumps({"token": tok, "done": False}))
+                        except: pass
+            sess += [{"role":"user","content":msg},{"role":"assistant","content":full}]
+            sess = sess[-20:]
+            asyncio.create_task(_post("conversations",
+                {"user_id": user["id"], "user_message": msg, "ai_reply": full, "module": module},
+                user["jwt"]))
+    except WebSocketDisconnect: pass
 
-            history.append({"role": "user",      "content": msg})
-            history.append({"role": "assistant",  "content": full})
-            history = history[-24:]
+# ── ✅ Voice conversation — full pipeline in one request ───────────────────────
+@app.post("/voice/conversation")
+async def voice_conversation(file: UploadFile = File(...),
+                             authorization: str = Header(default="")):
+    """
+    Whisper STT → Groq LLM → Orpheus TTS  — all in one server round-trip.
+    Returns JSON: { transcript, reply, audio_b64, module, skills, tts_ok }
+    audio_b64 is null if Orpheus TTS fails (terms not accepted) — client falls
+    back to browser SpeechSynthesis automatically.
+    """
+    user = {}
+    if authorization.startswith("Bearer ") and SB_URL:
+        jwt = authorization[7:]
+        async with httpx.AsyncClient(timeout=5) as c:
+            r = await c.get(f"{SB_URL}/auth/v1/user",
+                            headers={"apikey": SB_ANON, "Authorization": f"Bearer {jwt}"})
+            if r.status_code == 200: user = r.json(); user["jwt"] = jwt
 
-            if module == "home":
-                await _execute_ha(full)
+    # 1 — Whisper STT
+    audio = await file.read()
+    ext   = (file.filename or "a.webm").rsplit(".", 1)[-1]
+    async with httpx.AsyncClient(timeout=30) as c:
+        stt = await c.post(f"{GROQ_BASE}/audio/transcriptions",
+                           headers={"Authorization": f"Bearer {GROQ_KEY}"},
+                           files={"file": (f"a.{ext}", audio, f"audio/{ext}")},
+                           data={"model": GROQ_STT, "language": "en"})
+    transcript = stt.json().get("text", "").strip()
+    if not transcript or len(transcript) < 2:
+        return JSONResponse({"error": "no_speech", "transcript": ""})
 
-            asyncio.create_task(_persist_message(msg, full, module))
+    # 2 — LLM
+    profile, db_hist, skills = {}, [], []
+    if user:
+        try: profile, db_hist, skills = await _ctx(user["id"], user["jwt"], transcript)
+        except: pass
+    module = _route(transcript)
+    msgs   = _build_msgs(_sys(module, profile, skills, voice=True), db_hist, [], transcript)
+    async with httpx.AsyncClient(timeout=30) as c:
+        llm = await c.post(f"{GROQ_BASE}/chat/completions", headers=_gh(),
+                           json={"model": GROQ_CHAT, "messages": msgs, "max_tokens": 180})
+    ld = llm.json()
+    if "error" in ld:
+        return JSONResponse({"error": ld["error"]["message"]}, status_code=500)
+    reply = ld["choices"][0]["message"]["content"]
+    if user:
+        asyncio.create_task(_post("conversations",
+            {"user_id": user["id"], "user_message": transcript,
+             "ai_reply": reply, "module": module}, user["jwt"]))
 
-    except WebSocketDisconnect:
-        pass
+    # 3 — Orpheus TTS
+    speech = re.sub(r'[*_`#\[\]()\n]+', ' ', reply).strip()
+    speech = re.sub(r'\s+', ' ', speech)[:700]
+    tts_ok = False; audio_b64 = None
 
-# ── Voice: transcribe with Groq Whisper (free) ───────────────────────────────
+    async with httpx.AsyncClient(timeout=40) as c:
+        tts = await c.post(f"{GROQ_BASE}/audio/speech", headers=_gh(),
+                           json={"model": GROQ_TTS, "input": speech,
+                                 "voice": GROQ_VOICE, "response_format": "wav"})
+    if tts.status_code == 200:
+        audio_b64 = base64.b64encode(tts.content).decode()
+        tts_ok = True
+    else:
+        # Log the error so frontend can show a useful hint
+        print(f"[TTS ERROR {tts.status_code}]: {tts.text[:300]}")
+
+    return JSONResponse({
+        "transcript": transcript,
+        "reply":      reply,
+        "audio_b64":  audio_b64,
+        "tts_ok":     tts_ok,
+        "tts_error":  None if tts_ok else tts.text[:200],
+        "module":     module,
+        "skills":     [s["name"] for s in skills],
+    })
+
+# ── STT only ──────────────────────────────────────────────────────────────────
 @app.post("/voice/transcribe")
 async def transcribe(file: UploadFile = File(...)):
-    if not GROQ_API_KEY:
-        return {"error": "GROQ_API_KEY not configured"}
+    audio = await file.read()
+    ext   = (file.filename or "a.webm").rsplit(".", 1)[-1]
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.post(f"{GROQ_BASE}/audio/transcriptions",
+                         headers={"Authorization": f"Bearer {GROQ_KEY}"},
+                         files={"file": (f"a.{ext}", audio, f"audio/{ext}")},
+                         data={"model": GROQ_STT, "language": "en"})
+    return {"text": r.json().get("text", "").strip()}
 
-    audio_bytes = await file.read()
-    ext = file.filename.split(".")[-1] if file.filename else "webm"
+# ── TTS only ──────────────────────────────────────────────────────────────────
+@app.post("/voice/speak")
+async def speak(body: dict, user: dict = Depends(get_user)):
+    text  = re.sub(r'[*_`#\n]+', ' ', body.get("text", ""))[:800].strip()
+    voice = body.get("voice", GROQ_VOICE)
+    if not text: return JSONResponse({"error": "no text"}, status_code=400)
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.post(f"{GROQ_BASE}/audio/speech", headers=_gh(),
+                         json={"model": GROQ_TTS, "input": text,
+                               "voice": voice, "response_format": "wav"})
+    if r.status_code != 200:
+        return JSONResponse({"error": r.text[:200]}, status_code=500)
+    return Response(content=r.content, media_type="audio/wav")
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.post(
-            f"{GROQ_BASE}/audio/transcriptions",
-            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
-            files={"file": (f"audio.{ext}", audio_bytes, f"audio/{ext}")},
-            data={"model": GROQ_WHISPER, "language": "en"},
-        )
-    data = r.json()
-    return {"text": data.get("text", "").strip()}
+# ── Vision ────────────────────────────────────────────────────────────────────
+@app.post("/vision/analyze")
+async def analyze(file: UploadFile = File(...),
+                  prompt: str = "Describe this image in detail.",
+                  user: dict = Depends(get_user)):
+    if not user: raise HTTPException(401)
+    img  = await file.read()
+    b64  = base64.b64encode(img).decode()
+    mime = file.content_type or "image/jpeg"
+    msgs = [{"role": "user", "content": [
+        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
+        {"type": "text", "text": prompt}
+    ]}]
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.post(f"{GROQ_BASE}/chat/completions", headers=_gh(),
+                         json={"model": GROQ_VISION, "messages": msgs, "max_tokens": 1024})
+    d = r.json()
+    if "error" in d: return JSONResponse({"error": d["error"]["message"]}, status_code=500)
+    return {"analysis": d["choices"][0]["message"]["content"]}
 
-# ── Home Assistant ────────────────────────────────────────────────────────────
-async def _execute_ha(reply: str):
-    import re
-    if not HA_TOKEN or not HA_URL:
-        return
-    match = re.search(r'\{.*?"ha_action".*?\}', reply, re.DOTALL)
-    if not match:
-        return
-    try:
-        action = json.loads(match.group())
-        svc_map = {
-            "turn_on":         ("homeassistant", "turn_on"),
-            "turn_off":        ("homeassistant", "turn_off"),
-            "set_temperature": ("climate",       "set_temperature"),
-            "lock":            ("lock",          "lock"),
-            "unlock":          ("lock",          "unlock"),
+# ── ✅ Image generation — definitive fix ──────────────────────────────────────
+@app.post("/image/generate")
+async def gen_image(body: dict, user: dict = Depends(get_user)):
+    if not user: raise HTTPException(401)
+    prompt = body.get("prompt", "").strip()
+    if not prompt:
+        return JSONResponse({"error": "No prompt provided."}, status_code=400)
+    if not GEMINI_KEY:
+        return JSONResponse({
+            "error": "GEMINI_API_KEY is not set.",
+            "fix": "Add GEMINI_API_KEY in Render → Environment. Get a free key at aistudio.google.com"
+        }, status_code=500)
+
+    url     = f"{GEMINI_IMG}?key={GEMINI_KEY}"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "responseModalities": ["TEXT", "IMAGE"]
         }
-        domain, svc = svc_map.get(action["ha_action"], ("homeassistant", "turn_on"))
-        body = {"entity_id": action.get("entity", "")}
-        if "value" in action:
-            body["temperature"] = action["value"]
-        async with httpx.AsyncClient(timeout=5) as c:
-            await c.post(f"{HA_URL}/api/services/{domain}/{svc}",
-                         headers={"Authorization": f"Bearer {HA_TOKEN}"}, json=body)
-    except Exception as e:
-        print(f"HA error: {e}")
+    }
 
-# ── Supabase persistence ──────────────────────────────────────────────────────
-async def _persist_message(user_msg: str, ai_reply: str, module: str):
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        return
+    async with httpx.AsyncClient(timeout=120) as c:
+        r = await c.post(url, json=payload, headers={"Content-Type": "application/json"})
+
+    if r.status_code != 200:
+        # Return the full Gemini error so we can see exactly what's wrong
+        try:
+            err = r.json()
+        except Exception:
+            err = {"raw": r.text[:500]}
+        return JSONResponse({
+            "error": f"Gemini returned HTTP {r.status_code}",
+            "gemini_error": err
+        }, status_code=500)
+
+    data = r.json()
+
+    # ✅ Robust parsing — Gemini may return text parts before the image part
     try:
-        async with httpx.AsyncClient(timeout=5) as c:
-            await c.post(
-                f"{SUPABASE_URL}/rest/v1/conversations",
-                headers={
-                    "apikey": SUPABASE_KEY,
-                    "Authorization": f"Bearer {SUPABASE_KEY}",
-                    "Content-Type": "application/json",
-                    "Prefer": "return=minimal",
-                },
-                json={
-                    "user_message": user_msg,
-                    "ai_reply":     ai_reply,
-                    "module":       module,
-                    "created_at":   datetime.now().isoformat(),
-                },
-            )
-    except:
-        pass  # Don't crash if DB is unavailable
+        parts = data["candidates"][0]["content"]["parts"]
+        for part in parts:
+            if "inlineData" in part:
+                mime = part["inlineData"]["mimeType"]
+                b64  = part["inlineData"]["data"]
+                return {
+                    "image_url": f"data:{mime};base64,{b64}",
+                    "mime_type": mime
+                }
+        # No inlineData found — collect any text Gemini returned for debugging
+        texts = [p.get("text", "") for p in parts if "text" in p]
+        return JSONResponse({
+            "error": "Gemini responded but returned no image.",
+            "gemini_text": " ".join(texts),
+            "hint": "This usually means the prompt was blocked by safety filters. Try rephrasing."
+        }, status_code=500)
+    except (KeyError, IndexError) as e:
+        return JSONResponse({
+            "error": f"Unexpected Gemini response structure: {e}",
+            "raw": str(data)[:600]
+        }, status_code=500)
 
-# ── Data endpoints (health/planning) ─────────────────────────────────────────
-class LogEntry(BaseModel):
-    type: str       # meal | workout | sleep | weight | task | habit
-    data: dict
-    token: str = ""
+# ── Admin ─────────────────────────────────────────────────────────────────────
+@app.get("/admin/users")
+async def admin_list(user: dict = Depends(get_user)):
+    if not user: raise HTTPException(401)
+    p = await get_profile(user)
+    if p.get("role") != "admin": raise HTTPException(403)
+    return await _get("profiles", {"order": "created_at.asc"}, user["jwt"])
 
-@app.post("/log")
-async def log_entry(entry: LogEntry):
-    if APP_PASSWORD and entry.token != APP_PASSWORD:
-        return JSONResponse({"error": "Unauthorized"}, status_code=401)
-    if SUPABASE_URL and SUPABASE_KEY:
-        async with httpx.AsyncClient(timeout=5) as c:
-            await c.post(
-                f"{SUPABASE_URL}/rest/v1/logs",
-                headers={
-                    "apikey": SUPABASE_KEY,
-                    "Authorization": f"Bearer {SUPABASE_KEY}",
-                    "Content-Type": "application/json",
-                    "Prefer": "return=minimal",
-                },
-                json={"type": entry.type, "data": entry.data, "created_at": datetime.now().isoformat()},
-            )
-    return {"status": "logged", "type": entry.type}
+@app.patch("/admin/users/{uid}")
+async def admin_update(uid: str, body: dict, user: dict = Depends(get_user)):
+    if not user: raise HTTPException(401)
+    p = await get_profile(user)
+    if p.get("role") != "admin": raise HTTPException(403)
+    allowed = {k: v for k, v in body.items() if k in ["role", "display_name"]}
+    if SB_SVC: await _patch("profiles", allowed, {"id": uid}, SB_SVC)
+    return {"status": "updated"}
 
-@app.get("/logs/{log_type}")
-async def get_logs(log_type: str, token: str = "", limit: int = 50):
-    if APP_PASSWORD and token != APP_PASSWORD:
-        return JSONResponse({"error": "Unauthorized"}, status_code=401)
-    if not SUPABASE_URL:
-        return {"logs": [], "note": "Supabase not configured"}
-    async with httpx.AsyncClient(timeout=5) as c:
-        r = await c.get(
-            f"{SUPABASE_URL}/rest/v1/logs",
-            headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"},
-            params={"type": f"eq.{log_type}", "order": "created_at.desc", "limit": limit},
-        )
-    return {"logs": r.json()}
-
-# ── Health / keep-alive ───────────────────────────────────────────────────────
+# ── Health ────────────────────────────────────────────────────────────────────
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok", "time": datetime.now().isoformat()}
@@ -339,22 +530,18 @@ async def healthz():
 @app.get("/status")
 async def status():
     return {
-        "status":     "online",
-        "model":      GROQ_MODEL,
-        "groq_ready": bool(GROQ_API_KEY),
-        "ha_ready":   bool(HA_TOKEN),
-        "db_ready":   bool(SUPABASE_URL),
-        "modules":    list(MODULES.keys()),
-        "timestamp":  datetime.now().isoformat(),
+        "version": "4.0",
+        "groq_ready":   bool(GROQ_KEY),
+        "gemini_ready": bool(GEMINI_KEY),
+        "db_ready":     bool(SB_URL),
+        "tts_voice":    GROQ_VOICE,
+        "img_model":    "gemini-2.0-flash-exp-image-generation",
     }
 
-# ── Serve frontend ────────────────────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
 async def root():
-    html_file = Path(__file__).parent.parent / "static" / "index.html"
-    if html_file.exists():
-        return HTMLResponse(html_file.read_text())
-    return HTMLResponse("<h1>ARIA is running. Static files not found.</h1>")
+    f = Path(__file__).parent.parent / "static" / "index.html"
+    return HTMLResponse(f.read_text() if f.exists() else "<h1>ARIA v4</h1>")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=False)
