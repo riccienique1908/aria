@@ -1,7 +1,7 @@
 """
-ARIA v4 — Definitive fixes
+Andros v4 — Definitive fixes
 ===========================
-Image gen : gemini-2.0-flash-exp-image-generation via generateContent
+Image gen : gemini-2.5-flash-preview-05-20 via generateContent (confirmed free, 500/day)
             Correct payload + robust response parsing
 Voice     : /voice/conversation — Whisper → LLM → Orpheus in ONE request
             Returns base64 WAV + transcript + reply together
@@ -34,7 +34,7 @@ GROQ_BASE   = "https://api.groq.com/openai/v1"
 
 GEMINI_KEY  = os.getenv("GEMINI_API_KEY", "")
 # ✅ Confirmed working free-tier model + endpoint
-GEMINI_IMG  = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent"
+GEMINI_IMG  = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent"
 
 SB_URL  = os.getenv("SUPABASE_URL", "")
 SB_ANON = os.getenv("SUPABASE_ANON_KEY", "")
@@ -56,7 +56,7 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(_ping())
     yield
 
-app = FastAPI(title="ARIA v4", lifespan=lifespan)
+app = FastAPI(title="Andros v4", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 _static = Path(__file__).parent.parent / "static"
@@ -140,7 +140,7 @@ def _sys(module, profile, skills, voice=False):
     mem = ("\n\nUser profile:\n" + "\n".join(f"- {f}" for f in facts)) if facts else ""
     sk  = ("\n\nActive skills:\n" + "\n".join(f"[{s['name']}]: {s['system_prompt']}" for s in skills)) if skills else ""
     vn  = "\n\nVOICE MODE: Keep reply to 2-3 sentences max. No markdown, no lists, no code blocks. Speak naturally." if voice else ""
-    base = f"Today is {today}. {'The user is '+name+'. ' if name else ''}You are ARIA, a personal AI assistant.{mem}{sk}{vn}\n\n"
+    base = f"Today is {today}. {'The user is '+name+'. ' if name else ''}You are Andros, a personal AI assistant.{mem}{sk}{vn}\n\n"
     ex = {
         "work":     "You are a QA engineering expert. Be technical and precise.",
         "home":     'For HA actions output JSON: {"ha_action":"turn_on"|"turn_off","entity":"id"}',
@@ -535,13 +535,13 @@ async def status():
         "gemini_ready": bool(GEMINI_KEY),
         "db_ready":     bool(SB_URL),
         "tts_voice":    GROQ_VOICE,
-        "img_model":    "gemini-2.0-flash-exp-image-generation",
+        "img_model":    "gemini-2.5-flash-preview-05-20",
     }
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
     f = Path(__file__).parent.parent / "static" / "index.html"
-    return HTMLResponse(f.read_text() if f.exists() else "<h1>ARIA v4</h1>")
+    return HTMLResponse(f.read_text() if f.exists() else "<h1>Andros v4</h1>")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=False)

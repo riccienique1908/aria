@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 -- ═══════════════════════════════════════════════════════════════
 -- ARIA v3 — Full Database Setup
 -- Run this in Supabase → SQL Editor
@@ -66,24 +65,11 @@ create trigger on_auth_user_created
 create table public.conversations (
   id           bigserial primary key,
   user_id      uuid references auth.users(id) on delete cascade not null,
-=======
--- ARIA v2 — Supabase Database Setup
--- Run this in your Supabase SQL Editor (replaces the old setup)
-
--- Drop old tables if upgrading from v1
-drop table if exists conversations;
-drop table if exists logs;
-
--- ── Conversation history (long-term memory) ───────────────────────────────────
-create table conversations (
-  id           bigserial primary key,
->>>>>>> ec931570842916d24e0fc38106a5b9433412c439
   user_message text,
   ai_reply     text,
   module       text default 'general',
   created_at   timestamptz default now()
 );
-<<<<<<< HEAD
 alter table public.conversations enable row level security;
 create policy "Users see own conversations" on public.conversations
   for select using (auth.uid() = user_id);
@@ -188,39 +174,3 @@ values
    'Process meeting notes or transcripts. Extract: key decisions made, action items with owners, open questions, next steps. Format cleanly as bullet points.',
    array['meeting','notes','summary','minutes','discussed','action items'], true, 'work');
 */
-=======
-
--- Index for fast recent-history queries
-create index idx_conversations_created on conversations (created_at desc);
-
--- ── User profile (persistent facts about you) ─────────────────────────────────
-create table user_profile (
-  id              integer primary key default 1,  -- single row for one user
-  name            text,
-  weight_kg       float,
-  height_cm       float,
-  daily_cal_goal  integer,
-  daily_protein_g integer,
-  workouts_per_week integer,
-  sleep_goal_hours float,
-  target_weight_kg float,
-  latest_goal     text,
-  qa_stack        text,    -- e.g. "Playwright, TypeScript, Jira"
-  diet_preference text,    -- e.g. "high protein, no dairy"
-  notes           text,    -- any other facts
-  updated_at      timestamptz default now()
-);
-
--- Insert default empty profile
-insert into user_profile (id) values (1) on conflict (id) do nothing;
-
--- ── Health & food logs ────────────────────────────────────────────────────────
-create table logs (
-  id         bigserial primary key,
-  type       text,    -- meal | workout | sleep | weight | mood | task | habit
-  data       jsonb,
-  created_at timestamptz default now()
-);
-
-create index idx_logs_type_date on logs (type, created_at desc);
->>>>>>> ec931570842916d24e0fc38106a5b9433412c439
